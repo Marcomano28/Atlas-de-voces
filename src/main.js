@@ -8,8 +8,10 @@ import defaultPanorama from '/Fort.png'
 import earthTexturePath from '/world.jpg'
 import trinidadPanorama from '/trini.png'
 import rotaPanorama from '/rota1.png'
+import playaPanorama from '/playa.png'
+import centroHabanaPanorama from '/centroH.png'
 
-const PANORAMA_VIEW_LIMIT = THREE.MathUtils.degToRad(120);
+const PANORAMA_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
 const PANORAMA_HALF_VIEW_LIMIT = PANORAMA_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
 
@@ -28,7 +30,7 @@ function getCityTransform(lat, lon){
 let cityPoints = [
   {
     title: 'Habana',
-    coords: {lat: 23.1136, lng: -82.36},
+    coords: {lat: 23.1303, lng: -82.3531},
     texture: defaultPanorama,
     view: {yaw: -70, pitch: 0}
   },
@@ -48,6 +50,24 @@ let cityPoints = [
       lng: -79.98467
     },
     texture: trinidadPanorama,
+    view: {yaw: -80, pitch: 0}
+  },
+   {
+    title: 'Habana-41y42',
+    coords: {
+      lat: 23.1103,
+      lng: -82.4318
+    },
+    texture: playaPanorama,
+    view: {yaw: -150, pitch: 0}
+  },
+   {
+    title: 'Habana-centro',
+    coords: {
+      lat: 23.13833,
+      lng: -82.36417
+    },
+    texture: centroHabanaPanorama,
     view: {yaw: -80, pitch: 0}
   },
 ]
@@ -353,7 +373,7 @@ createPlanet(){
     element.innerText = city.title;
     list.appendChild(element);
     let mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.01,20,20),
+      new THREE.SphereGeometry(0.005,10,10),
       new THREE.MeshBasicMaterial({color: 0xff0000})
     )
     this.planetGroup.add(mesh);

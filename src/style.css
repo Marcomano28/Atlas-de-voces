@@ -1,0 +1,125 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  background: #202020;
+  overscroll-behavior: none;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+ 
+#list {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+}
+
+#list div,
+#list button {
+  min-width: 118px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+#list div:hover,
+#list button:hover {
+  background: #fff;
+}
+
+#list button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+#list button[hidden] {
+  display: none;
+}
+
+body[data-view="city"] #list div,
+body[data-view="transition"] #list div {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  #list {
+    top: auto;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    left: 16px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+  }
+
+  #list div,
+  #list button {
+    min-width: 104px;
+    max-width: 100%;
+    padding: 11px 14px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 560px) {
+  #list {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  #list div,
+  #list button {
+    flex: 1 1 96px;
+    min-width: 0;
+    padding: 11px 10px;
+  }
+
+  body[data-view="city"] #list button {
+    flex: 0 1 132px;
+  }
+}
+
+@media (pointer: coarse) {
+  #list div,
+  #list button {
+    min-height: 44px;
+  }
+}

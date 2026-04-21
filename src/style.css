@@ -73,6 +73,165 @@ body[data-view="transition"] #list div {
   display: none;
 }
 
+.speech-bubble {
+  --speech-fill: rgba(245, 253, 255, 0.82);
+  --speech-stroke: rgba(18, 65, 78, 0.78);
+  --speech-highlight: rgba(255, 255, 255, 0.68);
+  --speech-text: #123846;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  overflow: visible;
+  filter: blur(4px);
+  transition: opacity 180ms ease, filter 180ms ease, visibility 180ms ease;
+  will-change: transform, opacity;
+}
+
+.speech-bubble.is-visible {
+  opacity: 1;
+  visibility: visible;
+  filter: blur(0);
+}
+
+.speech-bubble.is-offscreen {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.speech-bubble__svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: visible;
+}
+
+.speech-bubble__text-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.speech-bubble__text {
+  max-width: 100%;
+  margin: 0;
+  padding: 12px 24px;
+  color: var(--speech-text);
+  font-family: ui-rounded, "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-wrap: pretty;
+}
+
+.speech-bubble__measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.dialog-input {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: 18px;
+  z-index: 120;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 48px;
+  gap: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  background: rgba(248, 250, 246, 0.9);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.dialog-input[hidden] {
+  display: none;
+}
+
+.dialog-input__variants {
+  width: 78px;
+  height: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 6px;
+  background: rgba(20, 63, 75, 0.12);
+}
+
+.dialog-input__variant {
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: rgba(20, 63, 75, 0.82);
+  font: 800 13px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.dialog-input__variant.is-active {
+  background: #143f4b;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(20, 63, 75, 0.22);
+}
+
+.dialog-input__field {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  border: 1px solid rgba(17, 32, 34, 0.24);
+  border-radius: 6px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #141b1d;
+  font: 16px/1.2 system-ui, sans-serif;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.dialog-input__field:focus {
+  border-color: rgba(24, 103, 124, 0.72);
+  box-shadow: 0 0 0 3px rgba(24, 103, 124, 0.14);
+}
+
+.dialog-input__send {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: #143f4b;
+  color: #fff;
+  font: 700 22px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.dialog-input__send:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
 @media (max-width: 900px) {
   #list {
     top: auto;
@@ -94,6 +253,12 @@ body[data-view="transition"] #list div {
     padding: 11px 14px;
     text-align: center;
   }
+
+  .dialog-input {
+    right: 14px;
+    left: 14px;
+    max-width: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -114,6 +279,31 @@ body[data-view="transition"] #list div {
 
   body[data-view="city"] #list button {
     flex: 0 1 132px;
+  }
+
+  .speech-bubble__text {
+    padding: 10px 20px;
+    font-size: 15px;
+    line-height: 1.32;
+  }
+
+  .dialog-input {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    grid-template-columns: 70px minmax(0, 1fr) 46px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .dialog-input__variants {
+    width: 70px;
+    height: 46px;
+  }
+
+  .dialog-input__field,
+  .dialog-input__send {
+    height: 46px;
   }
 }
 

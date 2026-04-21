@@ -2,6 +2,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import fragmentShader from './shaders/plane.frag?raw';
 import vertexShader from './shaders/plane.vert?raw';
+import {
+  SPEECH_BUBBLE_MIN_HEIGHT,
+  SPEECH_BUBBLE_MIN_WIDTH,
+  SPEECH_BUBBLE_TEXT_PAD_X,
+  SPEECH_BUBBLE_TEXT_PAD_Y,
+  buildSpeechBubbleSvg,
+  buildThoughtBubbleSvg,
+  clamp,
+  getSpeechBubbleExit,
+  getResponsiveBubbleMaxWidth
+} from './speechBubble.js';
 import gsap from 'gsap';
 import './style.css';
 import defaultPanorama from '/panoramas/Fort.png'
@@ -19,6 +30,8 @@ import yanislaidisCharacter from '/characters/Yanislaidis.png'
 const PANORAMA_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
 const PANORAMA_HALF_VIEW_LIMIT = PANORAMA_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
+const SPEECH_BUBBLE_TAIL_OFFSET = 36;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
 function getCityTransform(lat, lon){
   var phi = (lat * Math.PI/180);
@@ -39,13 +52,22 @@ let cityPoints = [
     texture: defaultPanorama,
     view: {yaw: -70, pitch: 0},
     character: {
+      agentId: 'domingo',
+      name: 'Domingo',
       texture: domingoCharacter,
       yawOffset: 20,
       pitch: -130,
       distance: 3.9,
       height: 6.2,
       feetOffset: 2.0,
-      aspect: 448 / 558
+      aspect: 448 / 558,
+      bubble: {
+        side: 'right',
+        anchorX: 1.35,
+        anchorY: 1.16,
+        tailY: 0.72,
+        offset: 50
+      }
     }
   },
   {
@@ -57,13 +79,22 @@ let cityPoints = [
     texture: rotaPanorama,
     view: {yaw: -110, pitch: 0},
     character: {
+      agentId: 'paco',
+      name: 'Paco',
       texture: pacoCharacter,
       yawOffset: 0,
       pitch: -50,
       distance: 2.9,
       height: 5.6,
       feetOffset: 2.0,
-      aspect: 448 / 558
+      aspect: 448 / 558,
+      bubble: {
+        side: 'left',
+        anchorX: 27.35,
+        anchorY: 12.14,
+        tailY: 0.82,
+        offset: 290
+      }
     }
   },
   {
@@ -75,13 +106,22 @@ let cityPoints = [
     texture: trinidadPanorama,
     view: {yaw: -80, pitch: 0},
     character: {
+      agentId: 'yanislaidis',
+      name: 'Yanislaidis',
       texture: yanislaidisCharacter,
       yawOffset: -48,
       pitch: -50,
       distance: 2.9,
       height: 6.9,
       feetOffset: 2.5,
-      aspect: 832 / 1248
+      aspect: 832 / 1248,
+      bubble: {
+        side: 'right',
+        anchorX: 1.35,
+        anchorY: 1.14,
+        tailY: 0.72,
+        offset: 50
+      }
     }
   },
    {
@@ -93,13 +133,22 @@ let cityPoints = [
     texture: playaPanorama,
     view: {yaw: -120, pitch: 0},
     character: {
+      agentId: 'marta-nora',
+      name: 'Marta Nora',
       texture: martaNoraCharacter,
       yawOffset: -32,
       pitch: -29,
       distance: 4.5,
       height: 6.4,
       feetOffset: 3.5,
-      aspect: 832 / 1248
+      aspect: 832 / 1248,
+      bubble: {
+        side: 'left',
+        anchorX: 172.38,
+        anchorY: 0.82,
+        tailY: 1.72,
+        offset: 152
+      }
     }
   },
    {
@@ -111,13 +160,22 @@ let cityPoints = [
     texture: centroHabanaPanorama,
     view: {yaw: -80, pitch: 0},
     character: {
+      agentId: 'manisera',
+      name: 'La manisera',
       texture: maniseraCharacter,
       yawOffset: 0,
       pitch: -50,
       distance: 2.9,
       height: 6.3,
       feetOffset: 2.3,
-      aspect: 408 / 612
+      aspect: 408 / 612,
+      bubble: {
+        side: 'right',
+        anchorX: 1.35,
+        anchorY: 1.14,
+        tailY: 0.72,
+        offset: 50
+      }
     }
   },
 ]
@@ -167,7 +225,21 @@ export default class WorldTour{
     this.previousPointer = new THREE.Vector2();
     this.currentPanoramaTexture = defaultPanorama;
     this.characterMesh = null;
+    this.activeCity = null;
+    this.chatSessionId = this.getChatSessionId();
+    this.dialogLoading = false;
+    this.speechBubbleVariant = 'tail';
+    this.speechBubbleVisible = false;
+    this.speechBubbleText = '';
+    this.speechBubbleSize = {w: SPEECH_BUBBLE_MIN_WIDTH, h: SPEECH_BUBBLE_MIN_HEIGHT};
+    this.speechTailWorld = new THREE.Vector3();
+    this.speechAnchorWorld = new THREE.Vector3();
+    this.speechTailNdc = new THREE.Vector3();
+    this.speechAnchorNdc = new THREE.Vector3();
+    this.speechTailLocal = new THREE.Vector3();
+    this.speechAnchorLocal = new THREE.Vector3();
 
+    this.createDialogueUI();
     this.createPanoramaScene();
     this.preloadPanoramaTextures();
     this.createPlanet();
@@ -197,6 +269,386 @@ setupKeyboard(){
   });
 }
 
+getChatSessionId(){
+  const storageKey = 'planeta-barrio-session-id';
+  const existing = window.localStorage?.getItem(storageKey);
+
+  if(existing) return existing;
+
+  const nextId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage?.setItem(storageKey, nextId);
+  return nextId;
+}
+
+createDialogueUI(){
+  const bubble = document.createElement('div');
+  bubble.className = 'speech-bubble';
+  bubble.dataset.variant = this.speechBubbleVariant;
+  bubble.style.width = `${this.speechBubbleSize.w}px`;
+  bubble.style.height = `${this.speechBubbleSize.h}px`;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('speech-bubble__svg');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const textLayer = document.createElement('div');
+  textLayer.className = 'speech-bubble__text-layer';
+
+  const text = document.createElement('p');
+  text.className = 'speech-bubble__text';
+  textLayer.appendChild(text);
+
+  const measure = document.createElement('div');
+  measure.className = 'speech-bubble__measure';
+
+  const measureText = document.createElement('p');
+  measureText.className = 'speech-bubble__text';
+  measure.appendChild(measureText);
+
+  bubble.appendChild(svg);
+  bubble.appendChild(textLayer);
+  bubble.appendChild(measure);
+  document.body.appendChild(bubble);
+
+  const form = document.createElement('form');
+  form.className = 'dialog-input';
+  form.hidden = true;
+
+  const variants = document.createElement('div');
+  variants.className = 'dialog-input__variants';
+
+  const variantA = document.createElement('button');
+  variantA.className = 'dialog-input__variant';
+  variantA.type = 'button';
+  variantA.innerText = 'A';
+  variantA.setAttribute('aria-label', 'Burbuja A');
+  variantA.setAttribute('aria-pressed', 'false');
+
+  const variantB = document.createElement('button');
+  variantB.className = 'dialog-input__variant is-active';
+  variantB.type = 'button';
+  variantB.innerText = 'B';
+  variantB.setAttribute('aria-label', 'Burbuja B');
+  variantB.setAttribute('aria-pressed', 'true');
+
+  variantA.addEventListener('click', () => {
+    this.setSpeechBubbleVariant('thought');
+  });
+
+  variantB.addEventListener('click', () => {
+    this.setSpeechBubbleVariant('tail');
+  });
+
+  variants.appendChild(variantA);
+  variants.appendChild(variantB);
+
+  const input = document.createElement('input');
+  input.className = 'dialog-input__field';
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.spellcheck = true;
+
+  const button = document.createElement('button');
+  button.className = 'dialog-input__send';
+  button.type = 'submit';
+  button.innerText = '→';
+  button.setAttribute('aria-label', 'Enviar');
+  button.disabled = true;
+
+  input.addEventListener('input', () => {
+    button.disabled = !input.value.trim();
+  });
+
+  form.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    this.submitDialogueMessage();
+  });
+
+  form.appendChild(variants);
+  form.appendChild(input);
+  form.appendChild(button);
+  document.body.appendChild(form);
+
+  this.speechBubbleElement = bubble;
+  this.speechBubbleSvg = svg;
+  this.speechBubbleTextElement = text;
+  this.speechBubbleMeasure = measure;
+  this.speechBubbleMeasureText = measureText;
+  this.dialogForm = form;
+  this.dialogInput = input;
+  this.dialogSendButton = button;
+  this.speechBubbleVariantButtons = {
+    thought: variantA,
+    tail: variantB
+  };
+  this.updateDialogueUI();
+}
+
+setSpeechBubbleVariant(variant){
+  this.speechBubbleVariant = variant;
+
+  Object.entries(this.speechBubbleVariantButtons || {}).forEach(([key, button]) => {
+    const isActive = key === variant;
+
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  if(this.speechBubbleElement){
+    this.speechBubbleElement.dataset.variant = variant;
+  }
+
+  this.updateSpeechBubblePosition();
+}
+
+updateDialogueUI(){
+  if(!this.dialogForm) return;
+
+  const canTalk = this.isInsideCity && !this.isTransitioning && Boolean(this.activeCity?.character);
+  const characterName = this.activeCity?.character?.name || this.activeCity?.title || 'el barrio';
+
+  this.dialogForm.hidden = !canTalk;
+  this.dialogInput.disabled = !canTalk || this.dialogLoading;
+  this.dialogInput.placeholder = `Habla con ${characterName}`;
+  this.dialogSendButton.disabled = !canTalk || this.dialogLoading || !this.dialogInput.value.trim();
+
+  if(!canTalk){
+    this.dialogInput.value = '';
+    this.hideSpeechBubble();
+  }
+}
+
+async submitDialogueMessage(){
+  const text = this.dialogInput.value.trim();
+
+  if(!text || !this.activeCity?.character || this.dialogLoading) return;
+
+  this.dialogInput.value = '';
+  this.dialogLoading = true;
+  this.updateDialogueUI();
+  this.showSpeechBubble('...');
+
+  try{
+    const reply = await this.sendAgentMessage(text);
+    this.showSpeechBubble(reply);
+  }catch(error){
+    console.error(error);
+    this.showSpeechBubble('Parece que se fue la luz... Dame un momentico, que en cuanto vuelva la corriente seguimos conversando.');
+  }finally{
+    this.dialogLoading = false;
+    this.updateDialogueUI();
+    this.dialogInput.focus({preventScroll: true});
+  }
+}
+
+async sendAgentMessage(text){
+  const response = await fetch(`${API_BASE_URL}/api/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      sessionId: this.chatSessionId,
+      agentId: this.activeCity.character.agentId,
+      message: text
+    })
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if(!response.ok){
+    throw new Error(payload.error || `Chat request failed (${response.status})`);
+  }
+
+  if(payload.sessionId && payload.sessionId !== this.chatSessionId){
+    this.chatSessionId = payload.sessionId;
+    window.localStorage?.setItem('planeta-barrio-session-id', payload.sessionId);
+  }
+
+  return payload.message?.content || '';
+}
+
+showSpeechBubble(text){
+  this.speechBubbleText = text;
+  this.speechBubbleVisible = true;
+  this.speechBubbleElement.classList.add('is-visible');
+  this.speechBubbleElement.classList.remove('is-offscreen');
+  this.updateSpeechBubbleSize();
+  this.updateSpeechBubblePosition();
+}
+
+hideSpeechBubble(){
+  this.speechBubbleVisible = false;
+  this.speechBubbleText = '';
+
+  if(this.speechBubbleElement){
+    this.speechBubbleElement.classList.remove('is-visible');
+    this.speechBubbleElement.classList.remove('is-offscreen');
+  }
+}
+
+updateSpeechBubbleSize(){
+  if(!this.speechBubbleMeasure || !this.speechBubbleTextElement) return;
+
+  const maxWidth = getResponsiveBubbleMaxWidth(this.width);
+
+  this.speechBubbleMeasureText.textContent = this.speechBubbleText;
+  this.speechBubbleMeasureText.style.width = 'auto';
+
+  let width = Math.ceil(this.speechBubbleMeasure.scrollWidth + SPEECH_BUBBLE_TEXT_PAD_X);
+  width = clamp(width, SPEECH_BUBBLE_MIN_WIDTH, maxWidth);
+
+  const textWidth = Math.max(width - SPEECH_BUBBLE_TEXT_PAD_X, 0);
+  this.speechBubbleMeasureText.style.width = `${textWidth}px`;
+
+  let height = Math.ceil(this.speechBubbleMeasure.scrollHeight + SPEECH_BUBBLE_TEXT_PAD_Y);
+  height = Math.max(height, SPEECH_BUBBLE_MIN_HEIGHT);
+
+  this.speechBubbleSize = {w: width, h: height};
+  this.speechBubbleTextElement.textContent = this.speechBubbleText;
+  this.speechBubbleTextElement.style.width = `${textWidth}px`;
+  this.speechBubbleElement.style.width = `${width}px`;
+  this.speechBubbleElement.style.height = `${height}px`;
+  this.speechBubbleSvg.setAttribute('width', `${width}`);
+  this.speechBubbleSvg.setAttribute('height', `${height}`);
+  this.speechBubbleSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+}
+
+getCharacterBubblePoints(){
+  if(!this.characterMesh || !this.activeCity?.character) return null;
+
+  const character = this.activeCity.character;
+  const bubble = character.bubble || {};
+  const height = character.height || 2;
+  const width = height * (character.aspect || 1);
+  const feetOffset = character.feetOffset || 0;
+  const side = bubble.side === 'left' ? -1 : 1;
+  const tailY = height * (bubble.tailY ?? 0.72) - feetOffset;
+  const anchorY = height * (bubble.anchorY ?? 1.14) - feetOffset;
+  const anchorX = side * width * (bubble.anchorX ?? 1.35);
+
+  this.characterMesh.updateMatrixWorld(true);
+
+  this.speechTailLocal.set(0, tailY, 0);
+  this.speechAnchorLocal.set(anchorX, anchorY, 0);
+
+  this.speechTailWorld.copy(this.speechTailLocal);
+  this.speechAnchorWorld.copy(this.speechAnchorLocal);
+  this.characterMesh.localToWorld(this.speechTailWorld);
+  this.characterMesh.localToWorld(this.speechAnchorWorld);
+
+  return {
+    tail: this.speechTailWorld,
+    anchor: this.speechAnchorWorld
+  };
+}
+
+updateSpeechBubblePosition(){
+  if(!this.speechBubbleVisible || !this.speechBubbleElement || !this.characterMesh) return;
+
+  const points = this.getCharacterBubblePoints();
+
+  if(!points){
+    this.speechBubbleElement.classList.add('is-offscreen');
+    return;
+  }
+
+  this.speechTailNdc.copy(points.tail).project(this.panoramaCamera);
+  this.speechAnchorNdc.copy(points.anchor).project(this.panoramaCamera);
+
+  const tailX = (this.speechTailNdc.x * 0.5 + 0.5) * this.width;
+  const tailY = (this.speechTailNdc.y * -0.5 + 0.5) * this.height;
+  const anchorX = (this.speechAnchorNdc.x * 0.5 + 0.5) * this.width;
+  const anchorY = (this.speechAnchorNdc.y * -0.5 + 0.5) * this.height;
+  const outsideMargin = Math.max(110, Math.min(this.width, this.height) * 0.18);
+  const pointIsBehind = this.speechTailNdc.z < -1 || this.speechTailNdc.z > 1;
+  const pointIsOutside =
+    tailX < -outsideMargin ||
+    tailX > this.width + outsideMargin ||
+    tailY < -outsideMargin ||
+    tailY > this.height + outsideMargin;
+
+  if(pointIsBehind || pointIsOutside){
+    this.speechBubbleElement.classList.add('is-offscreen');
+    return;
+  }
+
+  if(this.speechBubbleVariant === 'tail'){
+    this.positionTailSpeechBubble(tailX, tailY, anchorX, anchorY, outsideMargin);
+    return;
+  }
+
+  this.positionThoughtSpeechBubble(tailX, tailY, anchorX, anchorY);
+}
+
+positionThoughtSpeechBubble(tailX, tailY, anchorX, anchorY){
+  const {w, h} = this.speechBubbleSize;
+  const margin = this.width < 560 ? 10 : 18;
+  const inputHeight = this.dialogForm && !this.dialogForm.hidden ? this.dialogForm.offsetHeight : 82;
+  const bubble = this.activeCity?.character?.bubble || {};
+  const thoughtDistance = bubble.thoughtDistance || (this.width < 560 ? 138 : 185);
+  const dx = anchorX - tailX;
+  const dy = anchorY - tailY;
+  const distance = Math.hypot(dx, dy);
+  const ux = distance > 1 ? dx / distance : bubble.side === 'left' ? -1 : 1;
+  const uy = distance > 1 ? dy / distance : -0.34;
+  const thoughtAnchorX = tailX + ux * thoughtDistance;
+  const thoughtAnchorY = tailY + uy * thoughtDistance * 0.72;
+  const maxX = Math.max(margin, this.width - w - margin);
+  const maxY = Math.max(margin, this.height - h - inputHeight - margin * 2);
+  const x = clamp(thoughtAnchorX - w / 2, margin, maxX);
+  const y = clamp(thoughtAnchorY - h / 2, margin, maxY);
+  const tipX = tailX - x;
+  const tipY = tailY - y;
+
+  this.speechBubbleElement.classList.remove('is-offscreen');
+  this.speechBubbleElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  this.speechBubbleSvg.innerHTML = buildThoughtBubbleSvg(w, h, tipX, tipY);
+}
+
+positionTailSpeechBubble(tailX, tailY, anchorX, anchorY, outsideMargin){
+  const {w, h} = this.speechBubbleSize;
+  const dx = anchorX - tailX;
+  const dy = anchorY - tailY;
+  const distance = Math.hypot(dx, dy);
+
+  if(distance < 1){
+    this.speechBubbleElement.classList.add('is-offscreen');
+    return;
+  }
+
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const tipAngleDeg = Math.atan2(-uy, -ux) * 180 / Math.PI;
+  const exit = getSpeechBubbleExit(tipAngleDeg, w, h);
+  const bubble = this.activeCity?.character?.bubble || {};
+  const baseOffset = bubble.offset ?? SPEECH_BUBBLE_TAIL_OFFSET;
+  const dynamicOffset = baseOffset + clamp((h - 96) * 0.08, 0, 18);
+  const x = tailX + ux * dynamicOffset - exit.x;
+  const y = tailY + uy * dynamicOffset - exit.y;
+  const bubbleIsOutside =
+    x + w < -outsideMargin ||
+    x > this.width + outsideMargin ||
+    y + h < -outsideMargin ||
+    y > this.height + outsideMargin;
+
+  if(bubbleIsOutside){
+    this.speechBubbleElement.classList.add('is-offscreen');
+    return;
+  }
+
+  const tipX = tailX - x;
+  const tipY = tailY - y;
+
+  this.speechBubbleElement.classList.remove('is-offscreen');
+  this.speechBubbleElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  this.speechBubbleSvg.innerHTML = buildSpeechBubbleSvg(w, h, tipX, tipY);
+}
+
 setupExitButton(list){
   this.exitButton = document.createElement('button');
   this.exitButton.innerText = 'Salir';
@@ -213,6 +665,7 @@ updateExitButton(){
   this.exitButton.hidden = !this.isInsideCity;
   this.exitButton.disabled = this.isTransitioning;
   this.updateViewState();
+  this.updateDialogueUI();
 }
 
 updateViewState(){
@@ -291,6 +744,11 @@ resize() {
  if(this.panoramaTarget && this.planetTarget){
   this.panoramaTarget.setSize(this.width, this.height);
   this.planetTarget.setSize(this.width, this.height);
+ }
+
+ if(this.speechBubbleVisible){
+  this.updateSpeechBubbleSize();
+  this.updateSpeechBubblePosition();
  }
 
 }
@@ -427,6 +885,8 @@ setCityCharacter(city){
 }
 
 enterCity(city){
+  this.activeCity = city;
+  this.hideSpeechBubble();
   this.setPanoramaTexture(city.texture);
   this.setPanoramaView(city);
   this.setCityCharacter(city);
@@ -459,6 +919,7 @@ exitCity(){
       this.isInsideCity = false;
       this.isTransitioning = false;
       this.clearCityCharacter();
+      this.activeCity = null;
       this.updateExitButton();
       this.updateControls();
     }
@@ -630,6 +1091,7 @@ createCompositeScene() {
   // this.material.uniforms.time.value = this.time;
   requestAnimationFrame(this.render.bind(this));
   if(this.panoramaControls.enabled) this.panoramaControls.update();
+  this.updateSpeechBubblePosition();
 
   this.renderer. setRenderTarget(this.panoramaTarget);
   this.renderer.render(this.panoramaScene, this.panoramaCamera);

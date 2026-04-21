@@ -4,12 +4,17 @@ import fragmentShader from './shaders/plane.frag?raw';
 import vertexShader from './shaders/plane.vert?raw';
 import gsap from 'gsap';
 import './style.css';
-import defaultPanorama from '/Fort.png'
-import earthTexturePath from '/world.jpg'
-import trinidadPanorama from '/trini.png'
-import rotaPanorama from '/rota1.png'
-import playaPanorama from '/playa.png'
-import centroHabanaPanorama from '/centroH.png'
+import defaultPanorama from '/panoramas/Fort.png'
+import earthTexturePath from '/textures/world.jpg'
+import trinidadPanorama from '/panoramas/trini.png'
+import rotaPanorama from '/panoramas/rotaN.png'
+import playaPanorama from '/panoramas/41y42N.png'
+import centroHabanaPanorama from '/panoramas/centroH.png'
+import domingoCharacter from '/characters/Domingo.png'
+import pacoCharacter from '/characters/Paco.png'
+import martaNoraCharacter from '/characters/MartaNora.png'
+import maniseraCharacter from '/characters/manisera.png'
+import yanislaidisCharacter from '/characters/Yanislaidis.png'
 
 const PANORAMA_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
 const PANORAMA_HALF_VIEW_LIMIT = PANORAMA_VIEW_LIMIT * 0.5;
@@ -32,7 +37,16 @@ let cityPoints = [
     title: 'Habana',
     coords: {lat: 23.1303, lng: -82.3531},
     texture: defaultPanorama,
-    view: {yaw: -70, pitch: 0}
+    view: {yaw: -70, pitch: 0},
+    character: {
+      texture: domingoCharacter,
+      yawOffset: 20,
+      pitch: -130,
+      distance: 3.9,
+      height: 6.2,
+      feetOffset: 2.0,
+      aspect: 448 / 558
+    }
   },
   {
     title: 'Rota',
@@ -41,7 +55,16 @@ let cityPoints = [
       lng: -6.35997
     },
     texture: rotaPanorama,
-    view: {yaw: 0, pitch: 0}
+    view: {yaw: -110, pitch: 0},
+    character: {
+      texture: pacoCharacter,
+      yawOffset: 0,
+      pitch: -50,
+      distance: 2.9,
+      height: 5.6,
+      feetOffset: 2.0,
+      aspect: 448 / 558
+    }
   },
   {
     title: 'Trinidad',
@@ -50,7 +73,16 @@ let cityPoints = [
       lng: -79.98467
     },
     texture: trinidadPanorama,
-    view: {yaw: -80, pitch: 0}
+    view: {yaw: -80, pitch: 0},
+    character: {
+      texture: yanislaidisCharacter,
+      yawOffset: -48,
+      pitch: -50,
+      distance: 2.9,
+      height: 6.9,
+      feetOffset: 2.5,
+      aspect: 832 / 1248
+    }
   },
    {
     title: 'Habana-41y42',
@@ -59,7 +91,16 @@ let cityPoints = [
       lng: -82.4318
     },
     texture: playaPanorama,
-    view: {yaw: -150, pitch: 0}
+    view: {yaw: -120, pitch: 0},
+    character: {
+      texture: martaNoraCharacter,
+      yawOffset: -32,
+      pitch: -29,
+      distance: 4.5,
+      height: 6.4,
+      feetOffset: 3.5,
+      aspect: 832 / 1248
+    }
   },
    {
     title: 'Habana-centro',
@@ -68,7 +109,16 @@ let cityPoints = [
       lng: -82.36417
     },
     texture: centroHabanaPanorama,
-    view: {yaw: -80, pitch: 0}
+    view: {yaw: -80, pitch: 0},
+    character: {
+      texture: maniseraCharacter,
+      yawOffset: 0,
+      pitch: -50,
+      distance: 2.9,
+      height: 6.3,
+      feetOffset: 2.3,
+      aspect: 408 / 612
+    }
   },
 ]
 
@@ -83,6 +133,7 @@ export default class WorldTour{
     this.height = this.container.offsetHeight;
     this.textureLoader = new THREE.TextureLoader();
     this.textureCache = {};
+    this.characterTextureCache = {};
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
@@ -115,6 +166,7 @@ export default class WorldTour{
     this.dragDistance = 0;
     this.previousPointer = new THREE.Vector2();
     this.currentPanoramaTexture = defaultPanorama;
+    this.characterMesh = null;
 
     this.createPanoramaScene();
     this.preloadPanoramaTextures();
@@ -311,9 +363,73 @@ setPanoramaView(city){
   this.panoramaControls.update();
 }
 
+loadCharacterTexture(texture){
+  if(!this.characterTextureCache[texture]){
+    let t = this.textureLoader.load(texture);
+    t.colorSpace = THREE.SRGBColorSpace;
+    this.characterTextureCache[texture] = t;
+  }
+
+  return this.characterTextureCache[texture];
+}
+
+getCharacterPosition(city, character){
+  const view = city.view || {yaw: 0, pitch: 0};
+  const yaw = (view.yaw || 0) + 180 + (character.yawOffset || 0);
+  const pitch = character.pitch || 0;
+  const spherical = new THREE.Spherical(
+    character.distance || 5.5,
+    THREE.MathUtils.degToRad(90 - pitch),
+    THREE.MathUtils.degToRad(yaw)
+  );
+
+  return new THREE.Vector3().setFromSpherical(spherical);
+}
+
+clearCityCharacter(){
+  if(!this.characterMesh) return;
+
+  this.panoramaScene.remove(this.characterMesh);
+  this.characterMesh.geometry.dispose();
+  this.characterMesh.material.dispose();
+  this.characterMesh = null;
+}
+
+setCityCharacter(city){
+  this.clearCityCharacter();
+
+  if(!city.character) return;
+
+  const character = city.character;
+  const texture = this.loadCharacterTexture(character.texture);
+  const height = character.height || 2;
+  const aspect = character.aspect || 1;
+  const width = height * aspect;
+  const feetOffset = character.feetOffset || 0;
+  const geometry = new THREE.PlaneGeometry(width, height);
+
+  geometry.translate(0, (height / 2) - feetOffset, 0);
+
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.02,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  const toCamera = this.panoramaCamera.position.clone().sub(this.getCharacterPosition(city, character));
+
+  mesh.position.copy(this.getCharacterPosition(city, character));
+  mesh.rotation.y = Math.atan2(toCamera.x, toCamera.z);
+  this.panoramaScene.add(mesh);
+  this.characterMesh = mesh;
+}
+
 enterCity(city){
   this.setPanoramaTexture(city.texture);
   this.setPanoramaView(city);
+  this.setCityCharacter(city);
   this.material.uniforms.direction.value = 1;
   gsap.to(this.transition, {
     duration: 1,
@@ -342,6 +458,7 @@ exitCity(){
     onComplete: () => {
       this.isInsideCity = false;
       this.isTransitioning = false;
+      this.clearCityCharacter();
       this.updateExitButton();
       this.updateControls();
     }

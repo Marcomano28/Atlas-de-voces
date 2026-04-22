@@ -27,8 +27,10 @@ import martaNoraCharacter from '/characters/MartaNora.png'
 import maniseraCharacter from '/characters/manisera.png'
 import yanislaidisCharacter from '/characters/Yanislaidis.png'
 
-const PANORAMA_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
-const PANORAMA_HALF_VIEW_LIMIT = PANORAMA_VIEW_LIMIT * 0.5;
+const PANORAMA_HORIZONTAL_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
+const PANORAMA_VERTICAL_VIEW_LIMIT = THREE.MathUtils.degToRad(50);
+const PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT = PANORAMA_HORIZONTAL_VIEW_LIMIT * 0.5;
+const PANORAMA_HALF_VERTICAL_VIEW_LIMIT = PANORAMA_VERTICAL_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
 const SPEECH_BUBBLE_TAIL_OFFSET = 36;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
@@ -50,7 +52,7 @@ let cityPoints = [
     title: 'Habana',
     coords: {lat: 23.1303, lng: -82.3531},
     texture: defaultPanorama,
-    view: {yaw: -70, pitch: 0},
+    view: {yaw: -78, pitch: 0},
     character: {
       agentId: 'domingo',
       name: 'Domingo',
@@ -62,11 +64,12 @@ let cityPoints = [
       feetOffset: 2.0,
       aspect: 448 / 558,
       bubble: {
-        side: 'right',
-        anchorX: 1.35,
-        anchorY: 1.16,
-        tailY: 0.72,
-        offset: 50
+        side: 'left',
+        tailX: 0.06,
+        anchorX: 2.5,
+        anchorY: 1.86,
+        tailY: 0.82,
+        offset: 150
       }
     }
   },
@@ -77,7 +80,7 @@ let cityPoints = [
       lng: -6.35997
     },
     texture: rotaPanorama,
-    view: {yaw: -110, pitch: 0},
+    view: {yaw: -110, pitch: -12},
     character: {
       agentId: 'paco',
       name: 'Paco',
@@ -86,14 +89,15 @@ let cityPoints = [
       pitch: -50,
       distance: 2.9,
       height: 5.6,
-      feetOffset: 2.0,
+      feetOffset: 2.2,
       aspect: 448 / 558,
       bubble: {
         side: 'left',
+        tailX: 0.1,
         anchorX: 27.35,
         anchorY: 12.14,
         tailY: 0.82,
-        offset: 290
+        offset: 160
       }
     }
   },
@@ -104,7 +108,7 @@ let cityPoints = [
       lng: -79.98467
     },
     texture: trinidadPanorama,
-    view: {yaw: -80, pitch: 0},
+    view: {yaw: -80, pitch: -10},
     character: {
       agentId: 'yanislaidis',
       name: 'Yanislaidis',
@@ -117,6 +121,7 @@ let cityPoints = [
       aspect: 832 / 1248,
       bubble: {
         side: 'right',
+        tailX: 0,
         anchorX: 1.35,
         anchorY: 1.14,
         tailY: 0.72,
@@ -131,7 +136,7 @@ let cityPoints = [
       lng: -82.4318
     },
     texture: playaPanorama,
-    view: {yaw: -120, pitch: 0},
+    view: {yaw: -120, pitch: -17},
     character: {
       agentId: 'marta-nora',
       name: 'Marta Nora',
@@ -144,10 +149,11 @@ let cityPoints = [
       aspect: 832 / 1248,
       bubble: {
         side: 'left',
-        anchorX: 172.38,
-        anchorY: 0.82,
-        tailY: 1.72,
-        offset: 152
+        tailX: 0.2,
+        anchorX: 2.38,
+        anchorY: 1.82,
+        tailY: 0.82,
+        offset: 122
       }
     }
   },
@@ -158,7 +164,7 @@ let cityPoints = [
       lng: -82.36417
     },
     texture: centroHabanaPanorama,
-    view: {yaw: -80, pitch: 0},
+    view: {yaw: -80, pitch: -10},
     character: {
       agentId: 'manisera',
       name: 'La manisera',
@@ -170,11 +176,12 @@ let cityPoints = [
       feetOffset: 2.3,
       aspect: 408 / 612,
       bubble: {
-        side: 'right',
-        anchorX: 1.35,
+        side: 'left',
+        tailX: 0.12,
+        anchorX: 1.25,
         anchorY: 1.14,
-        tailY: 0.72,
-        offset: 50
+        tailY: 0.84,
+        offset: 100
       }
     }
   },
@@ -238,6 +245,10 @@ export default class WorldTour{
     this.speechAnchorNdc = new THREE.Vector3();
     this.speechTailLocal = new THREE.Vector3();
     this.speechAnchorLocal = new THREE.Vector3();
+    this.speechTailCenterLocal = new THREE.Vector3();
+    this.speechTailCenterWorld = new THREE.Vector3();
+    this.speechTailCenterNdc = new THREE.Vector3();
+    this.speechAnchorDirectionNdc = new THREE.Vector3();
 
     this.createDialogueUI();
     this.createPanoramaScene();
@@ -527,22 +538,36 @@ getCharacterBubblePoints(){
   const width = height * (character.aspect || 1);
   const feetOffset = character.feetOffset || 0;
   const side = bubble.side === 'left' ? -1 : 1;
+  const tailOffsetX = Math.abs(bubble.tailX ?? 0);
   const tailY = height * (bubble.tailY ?? 0.72) - feetOffset;
   const anchorY = height * (bubble.anchorY ?? 1.14) - feetOffset;
   const anchorX = side * width * (bubble.anchorX ?? 1.35);
 
   this.characterMesh.updateMatrixWorld(true);
 
-  this.speechTailLocal.set(0, tailY, 0);
+  this.speechTailCenterLocal.set(0, tailY, 0);
   this.speechAnchorLocal.set(anchorX, anchorY, 0);
 
-  this.speechTailWorld.copy(this.speechTailLocal);
+  this.speechTailCenterWorld.copy(this.speechTailCenterLocal);
   this.speechAnchorWorld.copy(this.speechAnchorLocal);
-  this.characterMesh.localToWorld(this.speechTailWorld);
+  this.characterMesh.localToWorld(this.speechTailCenterWorld);
   this.characterMesh.localToWorld(this.speechAnchorWorld);
+
+  this.speechTailCenterNdc.copy(this.speechTailCenterWorld).project(this.panoramaCamera);
+  this.speechAnchorDirectionNdc.copy(this.speechAnchorWorld).project(this.panoramaCamera);
+
+  // Mirror the tail from the character center by the bubble side, not by the plane's projected local X axis.
+  const anchorScreenDirection = Math.sign(this.speechAnchorDirectionNdc.x - this.speechTailCenterNdc.x) || side;
+  const tailX = anchorScreenDirection * width * tailOffsetX;
+
+  this.speechTailLocal.set(tailX, tailY, 0);
+
+  this.speechTailWorld.copy(this.speechTailLocal);
+  this.characterMesh.localToWorld(this.speechTailWorld);
 
   return {
     tail: this.speechTailWorld,
+    directionTail: this.speechTailCenterWorld,
     anchor: this.speechAnchorWorld
   };
 }
@@ -558,10 +583,13 @@ updateSpeechBubblePosition(){
   }
 
   this.speechTailNdc.copy(points.tail).project(this.panoramaCamera);
+  this.speechTailCenterNdc.copy(points.directionTail).project(this.panoramaCamera);
   this.speechAnchorNdc.copy(points.anchor).project(this.panoramaCamera);
 
   const tailX = (this.speechTailNdc.x * 0.5 + 0.5) * this.width;
   const tailY = (this.speechTailNdc.y * -0.5 + 0.5) * this.height;
+  const directionTailX = (this.speechTailCenterNdc.x * 0.5 + 0.5) * this.width;
+  const directionTailY = (this.speechTailCenterNdc.y * -0.5 + 0.5) * this.height;
   const anchorX = (this.speechAnchorNdc.x * 0.5 + 0.5) * this.width;
   const anchorY = (this.speechAnchorNdc.y * -0.5 + 0.5) * this.height;
   const outsideMargin = Math.max(110, Math.min(this.width, this.height) * 0.18);
@@ -578,48 +606,20 @@ updateSpeechBubblePosition(){
   }
 
   if(this.speechBubbleVariant === 'tail'){
-    this.positionTailSpeechBubble(tailX, tailY, anchorX, anchorY, outsideMargin);
+    this.positionTailSpeechBubble(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin);
     return;
   }
 
-  this.positionThoughtSpeechBubble(tailX, tailY, anchorX, anchorY);
+  this.positionThoughtSpeechBubble(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin);
 }
 
-positionThoughtSpeechBubble(tailX, tailY, anchorX, anchorY){
+getSpeechBubblePlacement(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin){
   const {w, h} = this.speechBubbleSize;
-  const margin = this.width < 560 ? 10 : 18;
-  const inputHeight = this.dialogForm && !this.dialogForm.hidden ? this.dialogForm.offsetHeight : 82;
-  const bubble = this.activeCity?.character?.bubble || {};
-  const thoughtDistance = bubble.thoughtDistance || (this.width < 560 ? 138 : 185);
-  const dx = anchorX - tailX;
-  const dy = anchorY - tailY;
-  const distance = Math.hypot(dx, dy);
-  const ux = distance > 1 ? dx / distance : bubble.side === 'left' ? -1 : 1;
-  const uy = distance > 1 ? dy / distance : -0.34;
-  const thoughtAnchorX = tailX + ux * thoughtDistance;
-  const thoughtAnchorY = tailY + uy * thoughtDistance * 0.72;
-  const maxX = Math.max(margin, this.width - w - margin);
-  const maxY = Math.max(margin, this.height - h - inputHeight - margin * 2);
-  const x = clamp(thoughtAnchorX - w / 2, margin, maxX);
-  const y = clamp(thoughtAnchorY - h / 2, margin, maxY);
-  const tipX = tailX - x;
-  const tipY = tailY - y;
-
-  this.speechBubbleElement.classList.remove('is-offscreen');
-  this.speechBubbleElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  this.speechBubbleSvg.innerHTML = buildThoughtBubbleSvg(w, h, tipX, tipY);
-}
-
-positionTailSpeechBubble(tailX, tailY, anchorX, anchorY, outsideMargin){
-  const {w, h} = this.speechBubbleSize;
-  const dx = anchorX - tailX;
-  const dy = anchorY - tailY;
+  const dx = anchorX - directionTailX;
+  const dy = anchorY - directionTailY;
   const distance = Math.hypot(dx, dy);
 
-  if(distance < 1){
-    this.speechBubbleElement.classList.add('is-offscreen');
-    return;
-  }
+  if(distance < 1) return null;
 
   const ux = dx / distance;
   const uy = dy / distance;
@@ -636,13 +636,42 @@ positionTailSpeechBubble(tailX, tailY, anchorX, anchorY, outsideMargin){
     y + h < -outsideMargin ||
     y > this.height + outsideMargin;
 
-  if(bubbleIsOutside){
+  if(bubbleIsOutside) return null;
+
+  return {
+    w,
+    h,
+    x,
+    y,
+    tipX: tailX - x,
+    tipY: tailY - y
+  };
+}
+
+positionThoughtSpeechBubble(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin){
+  const placement = this.getSpeechBubblePlacement(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin);
+
+  if(!placement){
     this.speechBubbleElement.classList.add('is-offscreen');
     return;
   }
 
-  const tipX = tailX - x;
-  const tipY = tailY - y;
+  const {w, h, x, y, tipX, tipY} = placement;
+
+  this.speechBubbleElement.classList.remove('is-offscreen');
+  this.speechBubbleElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  this.speechBubbleSvg.innerHTML = buildThoughtBubbleSvg(w, h, tipX, tipY);
+}
+
+positionTailSpeechBubble(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin){
+  const placement = this.getSpeechBubblePlacement(tailX, tailY, directionTailX, directionTailY, anchorX, anchorY, outsideMargin);
+
+  if(!placement){
+    this.speechBubbleElement.classList.add('is-offscreen');
+    return;
+  }
+
+  const {w, h, x, y, tipX, tipY} = placement;
 
   this.speechBubbleElement.classList.remove('is-offscreen');
   this.speechBubbleElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -802,8 +831,8 @@ setPanoramaView(city){
   const view = city.view || {yaw: 0, pitch: 0};
   const centerAzimuth = THREE.MathUtils.degToRad(view.yaw || 0);
   const centerPolar = THREE.MathUtils.degToRad(90 - (view.pitch || 0));
-  const minPolar = Math.max(0.01, centerPolar - PANORAMA_HALF_VIEW_LIMIT);
-  const maxPolar = Math.min(Math.PI - 0.01, centerPolar + PANORAMA_HALF_VIEW_LIMIT);
+  const minPolar = Math.max(0.01, centerPolar - PANORAMA_HALF_VERTICAL_VIEW_LIMIT);
+  const maxPolar = Math.min(Math.PI - 0.01, centerPolar + PANORAMA_HALF_VERTICAL_VIEW_LIMIT);
   const spherical = new THREE.Spherical(
     PANORAMA_CAMERA_RADIUS,
     centerPolar,
@@ -811,8 +840,8 @@ setPanoramaView(city){
   );
 
   this.panoramaControls.target.set(0, 0, 0);
-  this.panoramaControls.minAzimuthAngle = centerAzimuth - PANORAMA_HALF_VIEW_LIMIT;
-  this.panoramaControls.maxAzimuthAngle = centerAzimuth + PANORAMA_HALF_VIEW_LIMIT;
+  this.panoramaControls.minAzimuthAngle = centerAzimuth - PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT;
+  this.panoramaControls.maxAzimuthAngle = centerAzimuth + PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT;
   this.panoramaControls.minPolarAngle = minPolar;
   this.panoramaControls.maxPolarAngle = maxPolar;
 

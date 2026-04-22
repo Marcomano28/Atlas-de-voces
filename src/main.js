@@ -34,6 +34,8 @@ const PANORAMA_HALF_VERTICAL_VIEW_LIMIT = PANORAMA_VERTICAL_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
 const SPEECH_BUBBLE_TAIL_OFFSET = 36;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const BETA_ACCESS_REQUIRED = import.meta.env.VITE_BETA_ACCESS_REQUIRED === 'true';
+const BETA_ACCESS_CODE_STORAGE_KEY = 'planeta-barrio-beta-access-code';
 
 function getCityTransform(lat, lon){
   var phi = (lat * Math.PI/180);
@@ -234,6 +236,8 @@ export default class WorldTour{
     this.characterMesh = null;
     this.activeCity = null;
     this.chatSessionId = this.getChatSessionId();
+    this.betaAccessRequired = BETA_ACCESS_REQUIRED;
+    this.betaAccessCode = this.getBetaAccessCode();
     this.dialogLoading = false;
     this.speechBubbleVariant = 'tail';
     this.speechBubbleVisible = false;
@@ -289,6 +293,21 @@ getChatSessionId(){
   const nextId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   window.localStorage?.setItem(storageKey, nextId);
   return nextId;
+}
+
+getBetaAccessCode(){
+  return window.localStorage?.getItem(BETA_ACCESS_CODE_STORAGE_KEY) || '';
+}
+
+setBetaAccessCode(code){
+  this.betaAccessCode = code.trim();
+
+  if(this.betaAccessCode){
+    window.localStorage?.setItem(BETA_ACCESS_CODE_STORAGE_KEY, this.betaAccessCode);
+    return;
+  }
+
+  window.localStorage?.removeItem(BETA_ACCESS_CODE_STORAGE_KEY);
 }
 
 createDialogueUI(){
@@ -384,6 +403,59 @@ createDialogueUI(){
   form.appendChild(button);
   document.body.appendChild(form);
 
+  const betaOverlay = document.createElement('div');
+  betaOverlay.className = 'beta-access';
+  betaOverlay.hidden = true;
+
+  const betaForm = document.createElement('form');
+  betaForm.className = 'beta-access__form';
+
+  const betaTitle = document.createElement('h1');
+  betaTitle.className = 'beta-access__title';
+  betaTitle.textContent = 'Planeta Barrio';
+
+  const betaText = document.createElement('p');
+  betaText.className = 'beta-access__text';
+  betaText.textContent = 'Código de acceso';
+
+  const betaInput = document.createElement('input');
+  betaInput.className = 'beta-access__field';
+  betaInput.type = 'password';
+  betaInput.autocomplete = 'current-password';
+  betaInput.placeholder = 'Código';
+  betaInput.setAttribute('aria-label', 'Código de acceso');
+
+  const betaMessage = document.createElement('p');
+  betaMessage.className = 'beta-access__message';
+
+  const betaButton = document.createElement('button');
+  betaButton.className = 'beta-access__button';
+  betaButton.type = 'submit';
+  betaButton.textContent = 'Entrar';
+
+  betaForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const code = betaInput.value.trim();
+
+    if(!code){
+      betaMessage.textContent = 'Escribe el código para entrar.';
+      betaInput.focus();
+      return;
+    }
+
+    this.setBetaAccessCode(code);
+    this.hideBetaAccessGate();
+  });
+
+  betaForm.appendChild(betaTitle);
+  betaForm.appendChild(betaText);
+  betaForm.appendChild(betaInput);
+  betaForm.appendChild(betaMessage);
+  betaForm.appendChild(betaButton);
+  betaOverlay.appendChild(betaForm);
+  document.body.appendChild(betaOverlay);
+
   this.speechBubbleElement = bubble;
   this.speechBubbleSvg = svg;
   this.speechBubbleTextElement = text;
@@ -392,11 +464,37 @@ createDialogueUI(){
   this.dialogForm = form;
   this.dialogInput = input;
   this.dialogSendButton = button;
+  this.betaAccessElement = betaOverlay;
+  this.betaAccessInput = betaInput;
+  this.betaAccessMessage = betaMessage;
   this.speechBubbleVariantButtons = {
     thought: variantA,
     tail: variantB
   };
+
+  if(this.betaAccessRequired && !this.betaAccessCode){
+    this.showBetaAccessGate();
+  }
+
   this.updateDialogueUI();
+}
+
+showBetaAccessGate(message = ''){
+  if(!this.betaAccessElement) return;
+
+  this.betaAccessMessage.textContent = message;
+  this.betaAccessElement.hidden = false;
+  this.betaAccessInput.value = '';
+  window.requestAnimationFrame(() => {
+    this.betaAccessInput.focus({preventScroll: true});
+  });
+}
+
+hideBetaAccessGate(){
+  if(!this.betaAccessElement) return;
+
+  this.betaAccessElement.hidden = true;
+  this.betaAccessMessage.textContent = '';
 }
 
 setSpeechBubbleVariant(variant){
@@ -448,20 +546,42 @@ async submitDialogueMessage(){
     this.showSpeechBubble(reply);
   }catch(error){
     console.error(error);
+
+    if(error.code === 'beta_access_required'){
+      this.showSpeechBubble('Necesito el código de acceso para seguir conversando.');
+      this.showBetaAccessGate('Código no válido o caducado.');
+      return;
+    }
+
+    if(error.code === 'rate_limited'){
+      this.showSpeechBubble('Dame un respiro, que se llenó la acera. Probamos otra vez en un momentico.');
+      return;
+    }
+
     this.showSpeechBubble('Parece que se fue la luz... Dame un momentico, que en cuanto vuelva la corriente seguimos conversando.');
   }finally{
     this.dialogLoading = false;
     this.updateDialogueUI();
-    this.dialogInput.focus({preventScroll: true});
+
+    if(this.betaAccessElement?.hidden !== false){
+      this.dialogInput.focus({preventScroll: true});
+    }
   }
 }
 
 async sendAgentMessage(text){
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  const betaAccessCode = this.betaAccessCode || this.getBetaAccessCode();
+
+  if(betaAccessCode){
+    headers['X-Beta-Access-Code'] = betaAccessCode;
+  }
+
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify({
       sessionId: this.chatSessionId,
       agentId: this.activeCity.character.agentId,
@@ -472,7 +592,14 @@ async sendAgentMessage(text){
   const payload = await response.json().catch(() => ({}));
 
   if(!response.ok){
-    throw new Error(payload.error || `Chat request failed (${response.status})`);
+    const error = new Error(payload.error || `Chat request failed (${response.status})`);
+    error.code = payload.code || null;
+
+    if(response.status === 401 && error.code === 'beta_access_required'){
+      this.setBetaAccessCode('');
+    }
+
+    throw error;
   }
 
   if(payload.sessionId && payload.sessionId !== this.chatSessionId){

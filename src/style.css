@@ -232,6 +232,88 @@ body[data-view="transition"] #list div {
   opacity: 0.42;
 }
 
+.beta-access {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 18, 20, 0.74);
+  backdrop-filter: blur(12px);
+}
+
+.beta-access[hidden] {
+  display: none;
+}
+
+.beta-access__form {
+  width: min(100%, 360px);
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 8px;
+  background: rgba(248, 250, 246, 0.94);
+  box-shadow: 0 20px 58px rgba(0, 0, 0, 0.28);
+}
+
+.beta-access__title,
+.beta-access__text,
+.beta-access__message {
+  margin: 0;
+  color: #13262b;
+  font-family: system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+.beta-access__title {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.beta-access__text {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.beta-access__field,
+.beta-access__button {
+  height: 46px;
+  border-radius: 6px;
+  font: 16px/1.2 system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+.beta-access__field {
+  width: 100%;
+  border: 1px solid rgba(17, 32, 34, 0.24);
+  padding: 0 13px;
+  background: #fff;
+  color: #141b1d;
+  outline: none;
+}
+
+.beta-access__field:focus {
+  border-color: rgba(24, 103, 124, 0.72);
+  box-shadow: 0 0 0 3px rgba(24, 103, 124, 0.14);
+}
+
+.beta-access__message {
+  min-height: 18px;
+  color: #8c2f2f;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.beta-access__button {
+  border: 0;
+  background: #143f4b;
+  color: #fff;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   #list {
     top: auto;

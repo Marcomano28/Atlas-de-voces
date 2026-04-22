@@ -13,8 +13,12 @@ loadEnvFile();
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY_SIZE = 1024 * 1024;
+const BETA_ACCESS_HEADER = 'x-beta-access-code';
+const CHAT_RATE_LIMIT_WINDOW_MS = Number(process.env.CHAT_RATE_LIMIT_WINDOW_MS || 10 * 60 * 1000);
+const CHAT_RATE_LIMIT_MAX = Number(process.env.CHAT_RATE_LIMIT_MAX || 30);
 
 const memory = createMemoryStore();
+const chatRateLimits = new Map();
 
 function loadEnvFile(){
   const envPath = resolve(process.cwd(), '.env');
@@ -45,7 +49,7 @@ function sendJson(res, status, payload){
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Beta-Access-Code'
   });
   res.end(JSON.stringify(payload));
 }
@@ -54,9 +58,62 @@ function sendOptions(res){
   res.writeHead(204, {
     'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Beta-Access-Code'
   });
   res.end();
+}
+
+function isBetaProtected(){
+  return Boolean(process.env.BETA_ACCESS_CODE);
+}
+
+function hasBetaAccess(req){
+  if(!isBetaProtected()) return true;
+
+  return req.headers[BETA_ACCESS_HEADER] === process.env.BETA_ACCESS_CODE;
+}
+
+function requireBetaAccess(req, res){
+  if(hasBetaAccess(req)) return true;
+
+  sendJson(res, 401, {
+    error: 'Access code required',
+    code: 'beta_access_required'
+  });
+  return false;
+}
+
+function getRequestIp(req){
+  const forwardedFor = req.headers['x-forwarded-for'];
+
+  if(forwardedFor){
+    return String(forwardedFor).split(',')[0].trim();
+  }
+
+  return req.socket.remoteAddress || 'unknown';
+}
+
+function requireChatRateLimit(req, res){
+  if(!CHAT_RATE_LIMIT_MAX) return true;
+
+  const now = Date.now();
+  const key = getRequestIp(req);
+  const existing = chatRateLimits.get(key);
+  const bucket = existing && existing.resetAt > now
+    ? existing
+    : {count: 0, resetAt: now + CHAT_RATE_LIMIT_WINDOW_MS};
+
+  bucket.count += 1;
+  chatRateLimits.set(key, bucket);
+
+  if(bucket.count <= CHAT_RATE_LIMIT_MAX) return true;
+
+  sendJson(res, 429, {
+    error: 'Too many chat messages',
+    code: 'rate_limited',
+    retryAfterMs: Math.max(bucket.resetAt - now, 0)
+  });
+  return false;
 }
 
 function readJsonBody(req){
@@ -245,17 +302,24 @@ async function route(req, res){
   }
 
   if(req.method === 'POST' && path === '/api/chat'){
+    if(!requireBetaAccess(req, res)) return;
+    if(!requireChatRateLimit(req, res)) return;
+
     await handleChat(req, res);
     return;
   }
 
   if(req.method === 'GET' && path.startsWith('/api/sessions/') && path.endsWith('/memory')){
+    if(!requireBetaAccess(req, res)) return;
+
     const sessionId = decodeURIComponent(path.split('/')[3]);
     sendJson(res, 200, {session: memory.snapshot(sessionId)});
     return;
   }
 
   if(req.method === 'DELETE' && path.startsWith('/api/sessions/')){
+    if(!requireBetaAccess(req, res)) return;
+
     const sessionId = decodeURIComponent(path.split('/')[3]);
     memory.reset(sessionId);
     sendJson(res, 200, {ok: true, sessionId});

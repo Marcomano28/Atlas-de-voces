@@ -6,6 +6,7 @@ import {AGENTS, getAgent, getPublicAgents} from './agents.js';
 import {createMemoryStore} from './memory.js';
 import {createFallbackReply, buildChatMessages} from './prompts.js';
 import {selectNamePromptForTurn, selectRelationshipContext, selectRelayMessagesForTurn, selectRepertoireForTurn} from './repertoire.js';
+import {selectPlaceTruthsForTurn} from './places.js';
 import {createChatCompletion, getOpenRouterModel, hasOpenRouterKey} from './openrouter.js';
 
 loadEnvFile();
@@ -199,6 +200,12 @@ async function handleChat(req, res){
     availableRepertoire,
     shouldPromptForUserName: memory.shouldPromptForUserName(sessionId, agentId)
   });
+  const selectedPlaceTruths = selectPlaceTruthsForTurn({
+    agent,
+    userText,
+    conversation,
+    usedPlaceLineIds: memory.getUsedPlaceLineIds(sessionId, agentId)
+  });
 
   const messages = buildChatMessages({
     agent,
@@ -209,7 +216,8 @@ async function handleChat(req, res){
     availableRepertoireCount: availableRepertoire.length,
     selectedRelationships,
     selectedRelayMessages,
-    selectedNamePrompts
+    selectedNamePrompts,
+    selectedPlaceTruths
   });
 
   let provider = 'local-fallback';
@@ -243,6 +251,7 @@ async function handleChat(req, res){
   memory.appendMessage(sessionId, agentId, {role: 'assistant', content});
   memory.markNamePromptAskedFromReply(sessionId, agentId, content);
   memory.markUsedRepertoireFromReply(sessionId, agent, content);
+  memory.markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, content);
   memory.addAgentObservation(sessionId, agentId, createAgentObservation(agent, userText, content));
 
   sendJson(res, 200, {

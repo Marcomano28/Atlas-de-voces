@@ -72,6 +72,42 @@ function relationshipLines(selectedRelationships = []){
     .join('\n');
 }
 
+function buildPlaceTruthContext(agent, selectedPlaceTruths = []){
+  if(!selectedPlaceTruths.length){
+    return [
+      'Verdades del barrio:',
+      'No hay verdad de entorno seleccionada para este turno.',
+      'No inventes datos historicos del lugar; si el usuario pregunta por el entorno y no hay contexto, responde desde la percepcion del personaje.'
+    ].join('\n');
+  }
+
+  return [
+    'Verdades del barrio seleccionadas:',
+    'Usalas solo si encajan con lo que pregunta el usuario. No las recites como ficha; cada personaje debe contarlas desde su manera de mirar.',
+    ...selectedPlaceTruths.map((place) => {
+      const agentView = place.agentViews?.[agent.id];
+      const selectedLines = place.selectedAgentLines || [];
+
+      return [
+        `Lugar: ${place.name}`,
+        agentView?.lens ? `Lente de ${agent.name}: ${agentView.lens}` : null,
+        agentView?.angles?.length ? ['Angulos posibles:', ...agentView.angles.map((angle) => `- ${angle}`)].join('\n') : null,
+        selectedLines.length ? [
+          'Frases de entorno candidatas:',
+          'Puedes usar como maximo una si encaja de forma natural. Si la usas, mantenla literal o casi literal para que descanse despues.',
+          ...selectedLines.map((line) => [
+            `- ${line.id}: "${line.text}"`,
+            `  Contexto: ${line.when}`,
+            `  Tono: ${line.tone}`
+          ].join('\n'))
+        ].join('\n') : null,
+        'Datos del lugar y contexto:',
+        ...place.facts.map((fact) => `- ${fact}`)
+      ].filter(Boolean).join('\n');
+    })
+  ].join('\n\n');
+}
+
 function selectResponseRhythm({shouldAskUserName = false} = {}){
   if(shouldAskUserName){
     return 'Pregunta de confianza: responde breve y cierra preguntando el nombre del usuario de forma natural, usando la voz del personaje.';
@@ -211,7 +247,7 @@ export function buildNamePromptContext(selectedNamePrompts = []){
   ].join('\n');
 }
 
-export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, namePromptContext, responseRhythmContext){
+export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, namePromptContext, placeTruthContext, responseRhythmContext){
   return [
     WORLD_PROMPT.trim(),
     'Ritmo de este turno:',
@@ -220,6 +256,7 @@ export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, r
     `Escena: ${agent.scene}.`,
     `Arquetipo: ${agent.archetype}.`,
     `Rol publico: ${agent.publicRole}.`,
+    placeTruthContext,
     'Voz:',
     agent.voice.map((line) => `- ${line}`).join('\n'),
     'Limites:',
@@ -243,7 +280,8 @@ export function buildChatMessages({
   availableRepertoireCount = selectedRepertoire.length,
   selectedRelationships = [],
   selectedRelayMessages = [],
-  selectedNamePrompts = []
+  selectedNamePrompts = [],
+  selectedPlaceTruths = []
 }){
   const shouldAskUserName = selectedNamePrompts.length > 0;
   const recent = conversation.slice(-12).map((message) => ({
@@ -262,6 +300,7 @@ export function buildChatMessages({
         relationshipLines(selectedRelationships),
         buildRelayContext(selectedRelayMessages),
         buildNamePromptContext(selectedNamePrompts),
+        buildPlaceTruthContext(agent, selectedPlaceTruths),
         selectResponseRhythm({shouldAskUserName})
       )
     },

@@ -123,11 +123,11 @@ let cityPoints = [
       aspect: 832 / 1248,
       bubble: {
         side: 'right',
-        tailX: 0,
+        tailX: 0.1,
         anchorX: 1.35,
         anchorY: 1.14,
-        tailY: 0.72,
-        offset: 50
+        tailY: 0.82,
+        offset: 100
       }
     }
   },
@@ -241,6 +241,7 @@ export default class WorldTour{
     this.dialogLoading = false;
     this.speechBubbleVariant = 'tail';
     this.speechBubbleVisible = false;
+    this.speechBubbleTyping = false;
     this.speechBubbleText = '';
     this.speechBubbleSize = {w: SPEECH_BUBBLE_MIN_WIDTH, h: SPEECH_BUBBLE_MIN_HEIGHT};
     this.speechTailWorld = new THREE.Vector3();
@@ -539,7 +540,7 @@ async submitDialogueMessage(){
   this.dialogInput.value = '';
   this.dialogLoading = true;
   this.updateDialogueUI();
-  this.showSpeechBubble('...');
+  this.showSpeechBubble('', {typing: true});
 
   try{
     const reply = await this.sendAgentMessage(text);
@@ -610,7 +611,8 @@ async sendAgentMessage(text){
   return payload.message?.content || '';
 }
 
-showSpeechBubble(text){
+showSpeechBubble(text, options = {}){
+  this.speechBubbleTyping = Boolean(options.typing);
   this.speechBubbleText = text;
   this.speechBubbleVisible = true;
   this.speechBubbleElement.classList.add('is-visible');
@@ -621,6 +623,7 @@ showSpeechBubble(text){
 
 hideSpeechBubble(){
   this.speechBubbleVisible = false;
+  this.speechBubbleTyping = false;
   this.speechBubbleText = '';
 
   if(this.speechBubbleElement){
@@ -633,8 +636,19 @@ updateSpeechBubbleSize(){
   if(!this.speechBubbleMeasure || !this.speechBubbleTextElement) return;
 
   const maxWidth = getResponsiveBubbleMaxWidth(this.width);
+  const typingHtml = '<span></span><span></span><span></span>';
 
-  this.speechBubbleMeasureText.textContent = this.speechBubbleText;
+  this.speechBubbleMeasureText.classList.toggle('speech-bubble__typing', this.speechBubbleTyping);
+  this.speechBubbleTextElement.classList.toggle('speech-bubble__typing', this.speechBubbleTyping);
+
+  if(this.speechBubbleTyping){
+    this.speechBubbleMeasureText.innerHTML = typingHtml;
+    this.speechBubbleTextElement.innerHTML = typingHtml;
+  }else{
+    this.speechBubbleMeasureText.textContent = this.speechBubbleText;
+    this.speechBubbleTextElement.textContent = this.speechBubbleText;
+  }
+
   this.speechBubbleMeasureText.style.width = 'auto';
 
   let width = Math.ceil(this.speechBubbleMeasure.scrollWidth + SPEECH_BUBBLE_TEXT_PAD_X);
@@ -647,7 +661,6 @@ updateSpeechBubbleSize(){
   height = Math.max(height, SPEECH_BUBBLE_MIN_HEIGHT);
 
   this.speechBubbleSize = {w: width, h: height};
-  this.speechBubbleTextElement.textContent = this.speechBubbleText;
   this.speechBubbleTextElement.style.width = `${textWidth}px`;
   this.speechBubbleElement.style.width = `${width}px`;
   this.speechBubbleElement.style.height = `${height}px`;

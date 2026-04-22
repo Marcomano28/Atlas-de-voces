@@ -1,6 +1,13 @@
 const MAX_MESSAGES_PER_AGENT = 18;
 const MAX_MEMORY_NOTES = 12;
 
+function normalizeText(value = ''){
+  return String(value)
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
 function createSession(sessionId){
   return {
     id: sessionId,
@@ -13,6 +20,7 @@ function createSession(sessionId){
     namePromptAskedByAgent: {},
     namePromptCount: 0,
     usedRepertoire: {},
+    usedPlaceLines: {},
     conversations: {}
   };
 }
@@ -198,6 +206,38 @@ export function createMemoryStore(){
     });
   }
 
+  function getUsedPlaceLineIds(sessionId, agentId){
+    const used = getSession(sessionId).usedPlaceLines[agentId] || {};
+
+    return Object.keys(used);
+  }
+
+  function markPlaceLineUsed(sessionId, agentId, lineId){
+    const session = getSession(sessionId);
+
+    if(!session.usedPlaceLines[agentId]){
+      session.usedPlaceLines[agentId] = {};
+    }
+
+    session.usedPlaceLines[agentId][lineId] = new Date().toISOString();
+    session.updatedAt = new Date().toISOString();
+  }
+
+  function markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, reply){
+    const normalizedReply = normalizeText(reply);
+
+    selectedPlaceTruths
+      .flatMap((place) => place.selectedAgentLines || [])
+      .forEach((line) => {
+        const normalizedText = normalizeText(line.text);
+        const firstChunk = normalizedText.slice(0, Math.min(42, normalizedText.length));
+
+        if(normalizedReply.includes(normalizedText) || normalizedReply.includes(firstChunk)){
+          markPlaceLineUsed(sessionId, agentId, line.id);
+        }
+      });
+  }
+
   function snapshot(sessionId){
     const session = getSession(sessionId);
 
@@ -212,6 +252,7 @@ export function createMemoryStore(){
       namePromptAskedByAgent: session.namePromptAskedByAgent,
       namePromptCount: session.namePromptCount,
       usedRepertoire: session.usedRepertoire,
+      usedPlaceLines: session.usedPlaceLines,
       conversations: session.conversations
     };
   }
@@ -227,8 +268,10 @@ export function createMemoryStore(){
     getAvailableRepertoire,
     getConversation,
     getSession,
+    getUsedPlaceLineIds,
     markNamePromptAskedFromReply,
     markUsedRepertoireFromReply,
+    markUsedPlaceLinesFromReply,
     rememberFromUserMessage,
     reset,
     shouldPromptForUserName,

@@ -1,7 +1,7 @@
 export const SPEECH_BUBBLE_MIN_WIDTH = 96;
 export const SPEECH_BUBBLE_MIN_HEIGHT = 58;
-export const SPEECH_BUBBLE_TEXT_PAD_X = 72;
-export const SPEECH_BUBBLE_TEXT_PAD_Y = 42;
+export const SPEECH_BUBBLE_TEXT_PAD_X = 88;
+export const SPEECH_BUBBLE_TEXT_PAD_Y = 52;
 
 export function clamp(value, min, max){
   return Math.min(Math.max(value, min), max);

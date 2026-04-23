@@ -253,6 +253,9 @@ export default class WorldTour{
     this.chatSessionId = this.getChatSessionId();
     this.betaAccessRequired = BETA_ACCESS_REQUIRED;
     this.betaAccessCode = this.getBetaAccessCode();
+    this.currentView = null;
+    this.brandTitleCompactMode = null;
+    this.brandTitleTimeline = null;
     this.dialogLoading = false;
     this.speechBubbleVariant = 'tail';
     this.speechBubbleVisible = false;
@@ -271,6 +274,7 @@ export default class WorldTour{
     this.speechAnchorDirectionNdc = new THREE.Vector3();
 
     this.createDialogueUI();
+    this.createBrandTitleUI();
     this.createPanoramaScene();
     this.preloadPanoramaTextures();
     this.createPlanet();
@@ -493,6 +497,143 @@ createDialogueUI(){
   }
 
   this.updateDialogueUI();
+}
+
+createBrandTitleUI(){
+  const title = document.createElement('div');
+  title.className = 'brand-title';
+  title.setAttribute('aria-hidden', 'true');
+
+  const inner = document.createElement('div');
+  inner.className = 'brand-title__inner';
+
+  const line = document.createElement('span');
+  line.className = 'brand-title__line';
+
+  const eyebrow = document.createElement('p');
+  eyebrow.className = 'brand-title__eyebrow';
+  eyebrow.textContent = 'Atlas de Voces';
+
+  const name = document.createElement('h1');
+  name.className = 'brand-title__name';
+  name.textContent = 'Planeta Barrio';
+
+  inner.appendChild(line);
+  inner.appendChild(eyebrow);
+  inner.appendChild(name);
+  title.appendChild(inner);
+  document.body.appendChild(title);
+
+  this.brandTitleElement = title;
+  this.brandTitleInner = inner;
+  this.brandTitleLine = line;
+  this.brandTitleEyebrow = eyebrow;
+  this.brandTitleName = name;
+}
+
+isBrandTitleCompactMode(){
+  return this.width < 720 && this.height > this.width;
+}
+
+clearBrandTitleAnimationStyles(){
+  if(!this.brandTitleElement) return;
+
+  if(this.brandTitleTimeline){
+    this.brandTitleTimeline.kill();
+    this.brandTitleTimeline = null;
+  }
+
+  const animatedTargets = [
+    this.brandTitleElement,
+    this.brandTitleInner,
+    this.brandTitleLine,
+    this.brandTitleEyebrow,
+    this.brandTitleName
+  ];
+
+  gsap.killTweensOf(animatedTargets);
+  gsap.set(this.brandTitleElement, {clearProps: 'opacity,visibility,filter'});
+  gsap.set(this.brandTitleInner, {clearProps: 'opacity,visibility,y'});
+  gsap.set(this.brandTitleLine, {clearProps: 'opacity,scaleX,transformOrigin,y'});
+  gsap.set([this.brandTitleEyebrow, this.brandTitleName], {clearProps: 'opacity,y'});
+  this.brandTitleElement.classList.remove('is-animated');
+}
+
+playBrandTitleIntro(){
+  if(!this.brandTitleElement) return;
+
+  this.clearBrandTitleAnimationStyles();
+
+  const title = this.brandTitleElement;
+  const inner = this.brandTitleInner;
+  const line = this.brandTitleLine;
+  const eyebrow = this.brandTitleEyebrow;
+  const name = this.brandTitleName;
+
+  title.classList.remove('is-compact');
+  title.classList.add('is-visible', 'is-animated');
+
+  gsap.set(title, {opacity: 0, visibility: 'visible', filter: 'blur(10px)'});
+  gsap.set(inner, {y: -10});
+  gsap.set(line, {opacity: 0, scaleX: 0.62, transformOrigin: 'center center'});
+  gsap.set(eyebrow, {opacity: 0, y: 12});
+  gsap.set(name, {opacity: 0, y: 18});
+
+  this.brandTitleTimeline = gsap.timeline({
+    defaults: {ease: 'power2.out'},
+    onComplete: () => {
+      this.brandTitleTimeline = null;
+      title.classList.remove('is-visible', 'is-animated');
+      this.clearBrandTitleAnimationStyles();
+    }
+  });
+
+  this.brandTitleTimeline
+    .to(title, {opacity: 1, filter: 'blur(0px)', duration: 0.45}, 0)
+    .to(inner, {y: 0, duration: 0.55}, 0)
+    .to(line, {opacity: 0.9, scaleX: 1, duration: 0.58}, 0.02)
+    .to(eyebrow, {opacity: 0.84, y: 0, duration: 0.42}, 0.08)
+    .to(name, {opacity: 1, y: 0, duration: 0.52}, 0.14)
+    .to({}, {duration: 1.15})
+    .add('out')
+    .to([eyebrow, name], {opacity: 0, y: -8, duration: 0.36, ease: 'power2.in'}, 'out')
+    .to(line, {opacity: 0, scaleX: 1.14, duration: 0.34, ease: 'power2.in'}, 'out')
+    .to(title, {opacity: 0, filter: 'blur(8px)', duration: 0.4, ease: 'power2.in'}, 'out');
+}
+
+updateBrandTitleState({previousView = this.currentView, force = false} = {}){
+  if(!this.brandTitleElement) return;
+
+  const view = this.currentView || document.body.dataset.view || 'planet';
+  const isCompactMode = this.isBrandTitleCompactMode();
+  const supportsDesktopIntro = this.width >= 720;
+
+  this.brandTitleCompactMode = isCompactMode;
+
+  if(isCompactMode){
+    this.clearBrandTitleAnimationStyles();
+    this.brandTitleElement.classList.add('is-compact');
+    this.brandTitleElement.classList.toggle('is-visible', view === 'planet');
+    return;
+  }
+
+  this.brandTitleElement.classList.remove('is-compact');
+
+  if(!supportsDesktopIntro){
+    this.clearBrandTitleAnimationStyles();
+    this.brandTitleElement.classList.remove('is-visible');
+    return;
+  }
+
+  if(view !== 'planet'){
+    this.clearBrandTitleAnimationStyles();
+    this.brandTitleElement.classList.remove('is-visible');
+    return;
+  }
+
+  if(force || previousView !== 'planet'){
+    this.playBrandTitleIntro();
+  }
 }
 
 showBetaAccessGate(message = ''){
@@ -853,13 +994,18 @@ updateExitButton(){
 }
 
 updateViewState(){
+  const previousView = this.currentView;
+
   if(this.isTransitioning){
-    document.body.dataset.view = 'transition';
+    this.currentView = 'transition';
   }else if(this.isInsideCity){
-    document.body.dataset.view = 'city';
+    this.currentView = 'city';
   }else{
-    document.body.dataset.view = 'planet';
+    this.currentView = 'planet';
   }
+
+  document.body.dataset.view = this.currentView;
+  this.updateBrandTitleState({previousView});
 }
 
 updateControls(){
@@ -955,6 +1101,8 @@ resize() {
   this.updateSpeechBubblePosition();
  }
 
+ this.updateBrandTitleState();
+
 }
 
 updateResponsiveCameras(){
@@ -964,6 +1112,10 @@ updateResponsiveCameras(){
   this.planetCamera.fov = isCompact ? 76 : 70;
   this.planetCamera.position.z = isCompact ? 2.55 : isPortrait ? 2.25 : 2;
   this.panoramaCamera.fov = isCompact ? 78 : 70;
+
+  if(this.planetGroup){
+    this.planetGroup.position.y = 0;
+  }
 }
 
 createPanoramaScene(){ // sin usar

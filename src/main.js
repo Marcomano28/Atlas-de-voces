@@ -28,11 +28,14 @@ import maniseraCharacter from '/characters/manisera.png'
 import yanislaidisCharacter from '/characters/Yanislaidis.png'
 
 const PANORAMA_HORIZONTAL_VIEW_LIMIT = THREE.MathUtils.degToRad(170);
+const PANORAMA_HORIZONTAL_VIEW_LIMIT_MOBILE = THREE.MathUtils.degToRad(244);
 const PANORAMA_VERTICAL_VIEW_LIMIT = THREE.MathUtils.degToRad(50);
-const PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT = PANORAMA_HORIZONTAL_VIEW_LIMIT * 0.5;
 const PANORAMA_HALF_VERTICAL_VIEW_LIMIT = PANORAMA_VERTICAL_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
 const SPEECH_BUBBLE_TAIL_OFFSET = 36;
+const PLANET_DRAG_DAMPING = 0.88;
+const PLANET_DRAG_RESPONSE = 1 - PLANET_DRAG_DAMPING;
+const PLANET_DRAG_EPSILON = 0.00001;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const BETA_ACCESS_REQUIRED = import.meta.env.VITE_BETA_ACCESS_REQUIRED === 'true';
 const BETA_ACCESS_CODE_STORAGE_KEY = 'planeta-barrio-beta-access-code';
@@ -49,6 +52,17 @@ function getCityTransform(lat, lon){
   let quaternion = new THREE.Quaternion().setFromEuler(euler)
   return {vector, quaternion};
 }
+
+function getPanoramaHalfHorizontalViewLimit(width, height){
+  const isCompact = width < 720;
+  const isPortrait = height > width;
+  const horizontalLimit = isCompact && isPortrait
+    ? PANORAMA_HORIZONTAL_VIEW_LIMIT_MOBILE
+    : PANORAMA_HORIZONTAL_VIEW_LIMIT;
+
+  return horizontalLimit * 0.5;
+}
+
 let cityPoints = [
   {
     title: 'Habana',
@@ -232,6 +246,7 @@ export default class WorldTour{
     this.isDraggingPlanet = false;
     this.dragDistance = 0;
     this.previousPointer = new THREE.Vector2();
+    this.planetDragDelta = new THREE.Vector2();
     this.currentPanoramaTexture = defaultPanorama;
     this.characterMesh = null;
     this.activeCity = null;
@@ -831,7 +846,7 @@ setupExitButton(list){
 updateExitButton(){
   if(!this.exitButton) return;
 
-  this.exitButton.hidden = !this.isInsideCity;
+  this.exitButton.hidden = !(this.isInsideCity || this.isTransitioning);
   this.exitButton.disabled = this.isTransitioning;
   this.updateViewState();
   this.updateDialogueUI();
@@ -853,6 +868,7 @@ updateControls(){
 
   if(this.isInsideCity || this.isTransitioning){
     this.isDraggingPlanet = false;
+    this.planetDragDelta.set(0, 0);
   }
 }
 
@@ -862,6 +878,7 @@ setupPlanetDrag(){
 
     this.isDraggingPlanet = true;
     this.dragDistance = 0;
+    this.planetDragDelta.set(0, 0);
     this.previousPointer.set(e.clientX, e.clientY);
     this.renderer.domElement.setPointerCapture(e.pointerId);
   });
@@ -873,7 +890,8 @@ setupPlanetDrag(){
     let deltaY = e.clientY - this.previousPointer.y;
     this.dragDistance += Math.abs(deltaX) + Math.abs(deltaY);
     this.previousPointer.set(e.clientX, e.clientY);
-    this.rotatePlanet(deltaX, deltaY);
+    this.planetDragDelta.x += ((deltaX / this.width) * Math.PI) * PLANET_DRAG_RESPONSE;
+    this.planetDragDelta.y += ((deltaY / this.height) * Math.PI) * PLANET_DRAG_RESPONSE;
   });
 
   window.addEventListener("pointerup", () => {
@@ -886,17 +904,34 @@ setupPlanetDrag(){
   window.addEventListener("pointercancel", () => {
     this.isDraggingPlanet = false;
     this.dragDistance = 0;
+    this.planetDragDelta.set(0, 0);
   });
 }
 
 rotatePlanet(deltaX, deltaY){
   let angleX = (deltaX / this.width) * Math.PI;
   let angleY = (deltaY / this.height) * Math.PI;
+  this.applyPlanetRotation(angleX, angleY);
+}
+
+applyPlanetRotation(angleX, angleY){
   let horizontal = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleX);
   let vertical = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angleY);
 
   this.planetGroup.quaternion.premultiply(horizontal);
   this.planetGroup.quaternion.premultiply(vertical);
+}
+
+updatePlanetDragDamping(){
+  if(this.isInsideCity || this.isTransitioning) return;
+
+  if(this.planetDragDelta.lengthSq() < PLANET_DRAG_EPSILON){
+    this.planetDragDelta.set(0, 0);
+    return;
+  }
+
+  this.applyPlanetRotation(this.planetDragDelta.x, this.planetDragDelta.y);
+  this.planetDragDelta.multiplyScalar(PLANET_DRAG_DAMPING);
 }
 
 resize() {
@@ -971,6 +1006,7 @@ setPanoramaView(city){
   const view = city.view || {yaw: 0, pitch: 0};
   const centerAzimuth = THREE.MathUtils.degToRad(view.yaw || 0);
   const centerPolar = THREE.MathUtils.degToRad(90 - (view.pitch || 0));
+  const halfHorizontalViewLimit = getPanoramaHalfHorizontalViewLimit(this.width, this.height);
   const minPolar = Math.max(0.01, centerPolar - PANORAMA_HALF_VERTICAL_VIEW_LIMIT);
   const maxPolar = Math.min(Math.PI - 0.01, centerPolar + PANORAMA_HALF_VERTICAL_VIEW_LIMIT);
   const spherical = new THREE.Spherical(
@@ -980,8 +1016,8 @@ setPanoramaView(city){
   );
 
   this.panoramaControls.target.set(0, 0, 0);
-  this.panoramaControls.minAzimuthAngle = centerAzimuth - PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT;
-  this.panoramaControls.maxAzimuthAngle = centerAzimuth + PANORAMA_HALF_HORIZONTAL_VIEW_LIMIT;
+  this.panoramaControls.minAzimuthAngle = centerAzimuth - halfHorizontalViewLimit;
+  this.panoramaControls.maxAzimuthAngle = centerAzimuth + halfHorizontalViewLimit;
   this.panoramaControls.minPolarAngle = minPolar;
   this.panoramaControls.maxPolarAngle = maxPolar;
 
@@ -1131,6 +1167,7 @@ createPlanet(){
       if(this.dragDistance > 3) return;
       if(this.isInsideCity || this.isTransitioning) return;
 
+      this.planetDragDelta.set(0, 0);
       this.isTransitioning = true;
       this.updateExitButton();
       this.updateControls();
@@ -1259,6 +1296,7 @@ createCompositeScene() {
   this.time += 0.05;
   // this.material.uniforms.time.value = this.time;
   requestAnimationFrame(this.render.bind(this));
+  this.updatePlanetDragDamping();
   if(this.panoramaControls.enabled) this.panoramaControls.update();
   this.updateSpeechBubblePosition();
 

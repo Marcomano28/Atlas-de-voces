@@ -37,6 +37,7 @@ body {
   flex-direction: column;
   gap: 8px;
   font-size: 16px;
+  pointer-events: none;
 }
 
 #list div,
@@ -52,6 +53,7 @@ body {
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(8px);
+  pointer-events: auto;
 }
 
 #list div:hover,
@@ -356,16 +358,34 @@ body[data-view="transition"] #list div {
 
   #list div,
   #list button {
-    min-width: 104px;
+    min-width: 98px;
     max-width: 100%;
-    padding: 11px 14px;
+    padding: 9px 12px;
     text-align: center;
+    line-height: 1.05;
   }
 
   .dialog-input {
     right: 14px;
     left: 14px;
     max-width: none;
+  }
+
+  body[data-view="city"] #list,
+  body[data-view="transition"] #list {
+    top: calc(16px + env(safe-area-inset-top));
+    right: 16px;
+    bottom: auto;
+    left: auto;
+    width: auto;
+    max-width: calc(100% - 32px);
+    justify-content: flex-end;
+  }
+
+  body[data-view="city"] #list button,
+  body[data-view="transition"] #list button {
+    flex: 0 0 auto;
+    min-width: 96px;
   }
 }
 
@@ -375,18 +395,36 @@ body[data-view="transition"] #list div {
     bottom: calc(12px + env(safe-area-inset-bottom));
     left: 12px;
     gap: 8px;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   #list div,
   #list button {
-    flex: 1 1 96px;
+    flex: 1 1 88px;
     min-width: 0;
-    padding: 11px 10px;
+    padding: 8px 10px;
   }
 
   body[data-view="city"] #list button {
     flex: 0 1 132px;
+  }
+
+  body[data-view="city"] #list,
+  body[data-view="transition"] #list {
+    top: calc(12px + env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+    left: auto;
+    width: auto;
+    max-width: calc(100% - 24px);
+    justify-content: flex-end;
+  }
+
+  body[data-view="city"] #list button,
+  body[data-view="transition"] #list button {
+    flex: 0 0 auto;
+    min-width: 92px;
+    padding: 11px 14px;
   }
 
   .speech-bubble__text {

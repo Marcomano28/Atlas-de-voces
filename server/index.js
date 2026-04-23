@@ -7,7 +7,7 @@ import {createMemoryStore} from './memory.js';
 import {createFallbackReply, buildChatMessages} from './prompts.js';
 import {selectNamePromptForTurn, selectRelationshipContext, selectRelayMessagesForTurn, selectRepertoireForTurn} from './repertoire.js';
 import {selectPlaceTruthsForTurn} from './places.js';
-import {createChatCompletion, getOpenRouterModel, hasOpenRouterKey} from './openrouter.js';
+import {createChatCompletion, createChatCompletionStream, getOpenRouterModel, hasOpenRouterKey} from './openrouter.js';
 
 loadEnvFile();
 
@@ -62,6 +62,25 @@ function sendOptions(res){
     'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Beta-Access-Code'
   });
   res.end();
+}
+
+function sendEventStream(res){
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Beta-Access-Code'
+  });
+
+  res.flushHeaders?.();
+}
+
+function writeEventStream(res, event, payload){
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
 function isBetaProtected(){
@@ -154,21 +173,18 @@ function createAgentObservation(agent, userText, reply){
   return `${agent.name} converso con el usuario sobre "${shortUser}" y respondio desde "${shortReply}".`;
 }
 
-async function handleChat(req, res){
-  const body = await readJsonBody(req);
+function prepareChatTurn(body){
   const agentId = body.agentId;
   const userText = String(body.message || '').trim();
   const sessionId = body.sessionId || randomUUID();
   const agent = getAgent(agentId);
 
   if(!agent){
-    sendJson(res, 404, {error: `Unknown agent: ${agentId}`});
-    return;
+    throw Object.assign(new Error(`Unknown agent: ${agentId}`), {status: 404});
   }
 
   if(!userText){
-    sendJson(res, 400, {error: 'message is required'});
-    return;
+    throw Object.assign(new Error('message is required'), {status: 400});
   }
 
   const conversation = memory.getConversation(sessionId, agentId);
@@ -220,6 +236,31 @@ async function handleChat(req, res){
     selectedPlaceTruths
   });
 
+  return {
+    agentId,
+    userText,
+    sessionId,
+    agent,
+    messages,
+    selectedPlaceTruths
+  };
+}
+
+function finalizeChatTurn(context, content){
+  const {sessionId, agentId, agent, userText, selectedPlaceTruths} = context;
+
+  memory.appendMessage(sessionId, agentId, {role: 'user', content: userText});
+  memory.appendMessage(sessionId, agentId, {role: 'assistant', content});
+  memory.markNamePromptAskedFromReply(sessionId, agentId, content);
+  memory.markUsedRepertoireFromReply(sessionId, agent, content);
+  memory.markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, content);
+  memory.addAgentObservation(sessionId, agentId, createAgentObservation(agent, userText, content));
+}
+
+async function handleChat(body, res){
+  const context = prepareChatTurn(body);
+  const {agentId, userText, sessionId, agent, messages} = context;
+
   let provider = 'local-fallback';
   let model = null;
   let usage = null;
@@ -245,15 +286,10 @@ async function handleChat(req, res){
     }
 
     content = createFallbackReply(agent, userText);
-    model = hasOpenRouterKey() ? getOpenRouterModel() : null;
+    model = hasOpenRouterKey() ? getOpenRouterModel(agent) : null;
   }
 
-  memory.appendMessage(sessionId, agentId, {role: 'user', content: userText});
-  memory.appendMessage(sessionId, agentId, {role: 'assistant', content});
-  memory.markNamePromptAskedFromReply(sessionId, agentId, content);
-  memory.markUsedRepertoireFromReply(sessionId, agent, content);
-  memory.markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, content);
-  memory.addAgentObservation(sessionId, agentId, createAgentObservation(agent, userText, content));
+  finalizeChatTurn(context, content);
 
   sendJson(res, 200, {
     sessionId,
@@ -272,6 +308,78 @@ async function handleChat(req, res){
     usage,
     generationId
   });
+}
+
+async function handleChatStream(body, res){
+  const context = prepareChatTurn(body);
+  const {agent, sessionId, messages} = context;
+
+  sendEventStream(res);
+
+  let provider = 'local-fallback';
+  let model = null;
+  let usage = null;
+  let generationId = null;
+  let content = '';
+
+  try{
+    if(hasOpenRouterKey()){
+      provider = 'openrouter';
+      model = getOpenRouterModel(agent);
+
+      const completion = await createChatCompletionStream({
+        messages,
+        sessionId,
+        agentId: context.agentId,
+        model,
+        onDelta: (delta) => {
+          content += delta;
+          writeEventStream(res, 'delta', {content: delta});
+        }
+      });
+
+      content = content || completion.content;
+      model = completion.model;
+      usage = completion.usage;
+      generationId = completion.id;
+    }else{
+      content = createFallbackReply(agent, context.userText);
+      writeEventStream(res, 'delta', {content});
+    }
+  }catch(error){
+    if(hasOpenRouterKey()){
+      console.error('[openrouter]', error);
+    }
+
+    if(!content){
+      provider = 'local-fallback';
+      model = hasOpenRouterKey() ? getOpenRouterModel(agent) : null;
+      content = createFallbackReply(agent, context.userText);
+      writeEventStream(res, 'delta', {content});
+    }
+  }
+
+  finalizeChatTurn(context, content);
+
+  writeEventStream(res, 'done', {
+    sessionId,
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      scene: agent.scene,
+      color: agent.color
+    },
+    message: {
+      role: 'assistant',
+      content
+    },
+    provider,
+    model,
+    usage,
+    generationId
+  });
+
+  res.end();
 }
 
 async function route(req, res){
@@ -315,7 +423,14 @@ async function route(req, res){
     if(!requireBetaAccess(req, res)) return;
     if(!requireChatRateLimit(req, res)) return;
 
-    await handleChat(req, res);
+    const body = await readJsonBody(req);
+
+    if(body.stream){
+      await handleChatStream(body, res);
+      return;
+    }
+
+    await handleChat(body, res);
     return;
   }
 
@@ -345,6 +460,11 @@ const server = createServer((req, res) => {
 
     if(status >= 500){
       console.error(error);
+    }
+
+    if(res.headersSent){
+      res.end();
+      return;
     }
 
     sendJson(res, status, {error: error.message || 'Server error'});

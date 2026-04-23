@@ -33,6 +33,10 @@ const PANORAMA_VERTICAL_VIEW_LIMIT = THREE.MathUtils.degToRad(50);
 const PANORAMA_HALF_VERTICAL_VIEW_LIMIT = PANORAMA_VERTICAL_VIEW_LIMIT * 0.5;
 const PANORAMA_CAMERA_RADIUS = 2;
 const SPEECH_BUBBLE_TAIL_OFFSET = 36;
+const SPEECH_BUBBLE_REVEAL_DELAY_SHORT = 34;
+const SPEECH_BUBBLE_REVEAL_DELAY_LONG = 24;
+const SPEECH_BUBBLE_REVEAL_PAUSE_SOFT = 34;
+const SPEECH_BUBBLE_REVEAL_PAUSE_HARD = 62;
 const PLANET_DRAG_DAMPING = 0.88;
 const PLANET_DRAG_RESPONSE = 1 - PLANET_DRAG_DAMPING;
 const PLANET_DRAG_EPSILON = 0.00001;
@@ -261,6 +265,9 @@ export default class WorldTour{
     this.speechBubbleVisible = false;
     this.speechBubbleTyping = false;
     this.speechBubbleText = '';
+    this.speechBubbleRenderedText = '';
+    this.speechBubbleRevealTimeout = null;
+    this.speechBubbleRevealToken = 0;
     this.speechBubbleSize = {w: SPEECH_BUBBLE_MIN_WIDTH, h: SPEECH_BUBBLE_MIN_HEIGHT};
     this.speechTailWorld = new THREE.Vector3();
     this.speechAnchorWorld = new THREE.Vector3();
@@ -699,23 +706,30 @@ async submitDialogueMessage(){
   this.showSpeechBubble('', {typing: true});
 
   try{
-    const reply = await this.sendAgentMessage(text);
-    this.showSpeechBubble(reply);
+    const reply = await this.sendAgentMessage(text, {
+      onDelta: (partialText) => {
+        this.showSpeechBubble(partialText, {reveal: false});
+      }
+    });
+
+    if(this.speechBubbleText !== reply || this.speechBubbleTyping){
+      this.showSpeechBubble(reply, {reveal: false});
+    }
   }catch(error){
     console.error(error);
 
     if(error.code === 'beta_access_required'){
-      this.showSpeechBubble('Necesito el código de acceso para seguir conversando.');
+      this.showSpeechBubble('Necesito el código de acceso para seguir conversando.', {reveal: false});
       this.showBetaAccessGate('Código no válido o caducado.');
       return;
     }
 
     if(error.code === 'rate_limited'){
-      this.showSpeechBubble('Dame un respiro, que se llenó la acera. Probamos otra vez en un momentico.');
+      this.showSpeechBubble('Dame un respiro, que se llenó la acera. Probamos otra vez en un momentico.', {reveal: false});
       return;
     }
 
-    this.showSpeechBubble('Parece que se fue la luz... Dame un momentico, que en cuanto vuelva la corriente seguimos conversando.');
+    this.showSpeechBubble('Parece que se fue la luz... Dame un momentico, que en cuanto vuelva la corriente seguimos conversando.', {reveal: false});
   }finally{
     this.dialogLoading = false;
     this.updateDialogueUI();
@@ -726,7 +740,7 @@ async submitDialogueMessage(){
   }
 }
 
-async sendAgentMessage(text){
+async sendAgentMessage(text, options = {}){
   const headers = {
     'Content-Type': 'application/json'
   };
@@ -742,13 +756,13 @@ async sendAgentMessage(text){
     body: JSON.stringify({
       sessionId: this.chatSessionId,
       agentId: this.activeCity.character.agentId,
-      message: text
+      message: text,
+      stream: true
     })
   });
 
-  const payload = await response.json().catch(() => ({}));
-
   if(!response.ok){
+    const payload = await response.json().catch(() => ({}));
     const error = new Error(payload.error || `Chat request failed (${response.status})`);
     error.code = payload.code || null;
 
@@ -759,6 +773,14 @@ async sendAgentMessage(text){
     throw error;
   }
 
+  const contentType = response.headers.get('content-type') || '';
+
+  if(contentType.includes('text/event-stream') && response.body){
+    return this.readAgentMessageStream(response, options);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+
   if(payload.sessionId && payload.sessionId !== this.chatSessionId){
     this.chatSessionId = payload.sessionId;
     window.localStorage?.setItem('planeta-barrio-session-id', payload.sessionId);
@@ -767,24 +789,115 @@ async sendAgentMessage(text){
   return payload.message?.content || '';
 }
 
+async readAgentMessageStream(response, options = {}){
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let content = '';
+  let donePayload = null;
+
+  const processEvent = (rawEvent) => {
+    const lines = rawEvent.split('\n');
+    let eventName = 'message';
+    const dataLines = [];
+
+    lines.forEach((line) => {
+      if(!line || line.startsWith(':')) return;
+
+      if(line.startsWith('event:')){
+        eventName = line.slice(6).trim();
+        return;
+      }
+
+      if(line.startsWith('data:')){
+        dataLines.push(line.slice(5).trimStart());
+      }
+    });
+
+    if(!dataLines.length) return;
+
+    let payload;
+
+    try{
+      payload = JSON.parse(dataLines.join('\n'));
+    }catch{
+      return;
+    }
+
+    if(eventName === 'delta'){
+      content += payload.content || '';
+      options.onDelta?.(content, payload);
+      return;
+    }
+
+    if(eventName === 'done'){
+      donePayload = payload;
+      return;
+    }
+
+    if(eventName === 'error'){
+      const error = new Error(payload.error || 'Stream failed');
+      error.code = payload.code || null;
+      throw error;
+    }
+  };
+
+  while(true){
+    const {value, done} = await reader.read();
+
+    if(done) break;
+
+    buffer += decoder.decode(value, {stream: true}).replace(/\r\n/g, '\n');
+
+    while(true){
+      const boundary = buffer.indexOf('\n\n');
+
+      if(boundary === -1) break;
+
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      processEvent(rawEvent);
+    }
+  }
+
+  if(donePayload?.sessionId && donePayload.sessionId !== this.chatSessionId){
+    this.chatSessionId = donePayload.sessionId;
+    window.localStorage?.setItem('planeta-barrio-session-id', donePayload.sessionId);
+  }
+
+  return donePayload?.message?.content || content;
+}
+
 showSpeechBubble(text, options = {}){
+  this.clearSpeechBubbleReveal();
   this.speechBubbleTyping = Boolean(options.typing);
   this.speechBubbleText = text;
+  this.speechBubbleRenderedText = this.speechBubbleTyping ? '' : options.reveal === false ? text : '';
   this.speechBubbleVisible = true;
   this.speechBubbleElement.classList.add('is-visible');
   this.speechBubbleElement.classList.remove('is-offscreen');
   this.updateSpeechBubbleSize();
   this.updateSpeechBubblePosition();
+
+  if(!this.speechBubbleTyping && options.reveal !== false){
+    this.startSpeechBubbleReveal();
+  }
 }
 
 hideSpeechBubble(){
+  this.clearSpeechBubbleReveal();
   this.speechBubbleVisible = false;
   this.speechBubbleTyping = false;
   this.speechBubbleText = '';
+  this.speechBubbleRenderedText = '';
 
   if(this.speechBubbleElement){
     this.speechBubbleElement.classList.remove('is-visible');
     this.speechBubbleElement.classList.remove('is-offscreen');
+  }
+
+  if(this.speechBubbleTextElement){
+    this.speechBubbleTextElement.textContent = '';
   }
 }
 
@@ -802,7 +915,7 @@ updateSpeechBubbleSize(){
     this.speechBubbleTextElement.innerHTML = typingHtml;
   }else{
     this.speechBubbleMeasureText.textContent = this.speechBubbleText;
-    this.speechBubbleTextElement.textContent = this.speechBubbleText;
+    this.speechBubbleTextElement.textContent = this.speechBubbleRenderedText;
   }
 
   this.speechBubbleMeasureText.style.width = 'auto';
@@ -823,6 +936,70 @@ updateSpeechBubbleSize(){
   this.speechBubbleSvg.setAttribute('width', `${width}`);
   this.speechBubbleSvg.setAttribute('height', `${height}`);
   this.speechBubbleSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+}
+
+clearSpeechBubbleReveal(){
+  this.speechBubbleRevealToken += 1;
+
+  if(this.speechBubbleRevealTimeout){
+    window.clearTimeout(this.speechBubbleRevealTimeout);
+    this.speechBubbleRevealTimeout = null;
+  }
+}
+
+getSpeechBubbleRevealDelay(previousWord, totalWords){
+  let delay = totalWords > 18
+    ? SPEECH_BUBBLE_REVEAL_DELAY_LONG
+    : SPEECH_BUBBLE_REVEAL_DELAY_SHORT;
+
+  if(/[,:;]$/.test(previousWord)){
+    delay += SPEECH_BUBBLE_REVEAL_PAUSE_SOFT;
+  }else if(/[.!?…]$/.test(previousWord)){
+    delay += SPEECH_BUBBLE_REVEAL_PAUSE_HARD;
+  }
+
+  return delay;
+}
+
+startSpeechBubbleReveal(){
+  if(!this.speechBubbleTextElement || this.speechBubbleTyping) return;
+
+  const words = this.speechBubbleText.trim().split(/\s+/).filter(Boolean);
+
+  if(words.length <= 1){
+    this.speechBubbleRenderedText = this.speechBubbleText;
+    this.speechBubbleTextElement.textContent = this.speechBubbleRenderedText;
+    return;
+  }
+
+  const revealToken = this.speechBubbleRevealToken;
+  let index = 0;
+
+  const revealNextWord = () => {
+    if(
+      revealToken !== this.speechBubbleRevealToken ||
+      !this.speechBubbleVisible ||
+      this.speechBubbleTyping
+    ){
+      return;
+    }
+
+    index += 1;
+    this.speechBubbleRenderedText = words.slice(0, index).join(' ');
+    this.speechBubbleTextElement.textContent = this.speechBubbleRenderedText;
+
+    if(index >= words.length){
+      this.speechBubbleRevealTimeout = null;
+      return;
+    }
+
+    this.speechBubbleRevealTimeout = window.setTimeout(
+      revealNextWord,
+      this.getSpeechBubbleRevealDelay(words[index - 1], words.length)
+    );
+  };
+
+  revealNextWord();
 }
 
 getCharacterBubblePoints(){

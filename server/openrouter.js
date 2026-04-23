@@ -4,11 +4,11 @@ export function hasOpenRouterKey(){
   return Boolean(process.env.OPENROUTER_API_KEY);
 }
 
-export function getOpenRouterModel(){
-  return process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+export function getOpenRouterModel(agent = null){
+  return agent?.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 }
 
-export async function createChatCompletion({messages, sessionId, agentId}){
+export async function createChatCompletion({messages, sessionId, agentId, model}){
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if(!apiKey){
@@ -25,7 +25,7 @@ export async function createChatCompletion({messages, sessionId, agentId}){
       'X-Session-Id': sessionId
     },
     body: JSON.stringify({
-      model: getOpenRouterModel(),
+      model: model || getOpenRouterModel(),
       messages,
       temperature: Number(process.env.OPENROUTER_TEMPERATURE || 0.82),
       max_tokens: Number(process.env.OPENROUTER_MAX_TOKENS || 420),

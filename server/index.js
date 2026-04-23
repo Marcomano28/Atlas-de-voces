@@ -230,7 +230,8 @@ async function handleChat(req, res){
     const completion = await createChatCompletion({
       messages,
       sessionId,
-      agentId
+      agentId,
+      model: getOpenRouterModel(agent)
     });
 
     content = completion.content;

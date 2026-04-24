@@ -189,7 +189,7 @@ function prepareChatTurn(body){
 
   const conversation = memory.getConversation(sessionId, agentId);
 
-  memory.rememberFromUserMessage(sessionId, agentId, userText, AGENTS);
+  const nameEcho = memory.rememberFromUserMessage(sessionId, agentId, userText, AGENTS);
 
   const availableRepertoire = memory.getAvailableRepertoire(sessionId, agent);
   const selectedRepertoire = selectRepertoireForTurn({
@@ -212,6 +212,7 @@ function prepareChatTurn(body){
     userText,
     conversation
   });
+  const pendingRelayMessages = memory.getPendingRelayMessagesForAgent(sessionId, agentId);
   const selectedNamePrompts = selectNamePromptForTurn({
     availableRepertoire,
     shouldPromptForUserName: memory.shouldPromptForUserName(sessionId, agentId)
@@ -232,8 +233,15 @@ function prepareChatTurn(body){
     availableRepertoireCount: availableRepertoire.length,
     selectedRelationships,
     selectedRelayMessages,
+    pendingRelayMessages,
     selectedNamePrompts,
-    selectedPlaceTruths
+    selectedPlaceTruths,
+    nameEcho: nameEcho
+      ? {
+        ...nameEcho,
+        activeAgentId: agentId
+      }
+      : null
   });
 
   return {
@@ -242,16 +250,20 @@ function prepareChatTurn(body){
     sessionId,
     agent,
     messages,
+    selectedRelayMessages,
+    pendingRelayMessages,
     selectedPlaceTruths
   };
 }
 
 function finalizeChatTurn(context, content){
-  const {sessionId, agentId, agent, userText, selectedPlaceTruths} = context;
+  const {sessionId, agentId, agent, userText, selectedRelayMessages, pendingRelayMessages, selectedPlaceTruths} = context;
 
   memory.appendMessage(sessionId, agentId, {role: 'user', content: userText});
   memory.appendMessage(sessionId, agentId, {role: 'assistant', content});
   memory.markNamePromptAskedFromReply(sessionId, agentId, content);
+  memory.markPendingRelayMessagesFromReply(sessionId, agent, selectedRelayMessages, content);
+  memory.markPendingRelayMessagesDelivered(sessionId, agentId, pendingRelayMessages.slice(0, 1).map((item) => item.id));
   memory.markUsedRepertoireFromReply(sessionId, agent, content);
   memory.markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, content);
   memory.addAgentObservation(sessionId, agentId, createAgentObservation(agent, userText, content));

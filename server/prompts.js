@@ -227,6 +227,25 @@ export function buildRelayContext(selectedRelayMessages = []){
   ].join('\n');
 }
 
+export function buildPendingRelayContext(pendingRelayMessages = []){
+  if(!pendingRelayMessages.length){
+    return [
+      'Recados pendientes para este personaje:',
+      'No hay recados pendientes que el usuario pueda traer en este turno.'
+    ].join('\n');
+  }
+
+  return [
+    'Recados pendientes para este personaje:',
+    'El usuario viene de hablar con otros personajes y trae ecos del barrio.',
+    'Reacciona brevemente a como maximo un recado; debe sentirse como vida social, no como una tarea.',
+    ...pendingRelayMessages.map((item) => [
+      `- ${item.id}: de ${item.from}: "${item.text}"`,
+      item.tone ? `  Tono original: ${item.tone}` : null
+    ].filter(Boolean).join('\n'))
+  ].join('\n');
+}
+
 export function buildNamePromptContext(selectedNamePrompts = []){
   if(!selectedNamePrompts.length){
     return [
@@ -247,7 +266,40 @@ export function buildNamePromptContext(selectedNamePrompts = []){
   ].join('\n');
 }
 
-export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, namePromptContext, placeTruthContext, responseRhythmContext){
+export function buildNameEchoContext(nameEcho = null){
+  if(!nameEcho?.matchedAgent && !nameEcho?.matchedLocalName){
+    return [
+      'Eco del nombre:',
+      'No hay juego especial con el nombre del usuario en este turno.'
+    ].join('\n');
+  }
+
+  if(nameEcho.matchedLocalName){
+    return [
+      'Eco del nombre:',
+      `El usuario acaba de presentarse como "${nameEcho.capturedName}". A ${nameEcho.activeAgentId} ese nombre le recuerda a ${nameEcho.matchedLocalName.displayName}.`,
+      'Acepta el nombre del usuario como valido; esta asociacion local no confirma que sea esa persona.',
+      `Frase local candidata: "${nameEcho.matchedLocalName.line}"`,
+      nameEcho.matchedLocalName.tone ? `Tono: ${nameEcho.matchedLocalName.tone}` : null,
+      nameEcho.matchedLocalName.ifDenied ? `Si el usuario rectifica despues: ${nameEcho.matchedLocalName.ifDenied}` : null,
+      'Puedes usar la frase literal o casi literal si entra natural; debe sonar a pueblo chico, no a ficha de base de datos.'
+    ].filter(Boolean).join('\n');
+  }
+
+  const sameAsActive = nameEcho.matchedAgent.id === nameEcho.activeAgentId;
+
+  return [
+    'Eco del nombre:',
+    `El usuario acaba de presentarse como "${nameEcho.capturedName}", que coincide con ${nameEcho.matchedAgent.name}.`,
+    'Acepta ese nombre como valido salvo que el usuario lo rectifique; no lo bloquees ni lo conviertas en error.',
+    sameAsActive
+      ? 'Puedes reaccionar con picardia porque comparte nombre contigo, como quien se encuentra un espejo con descaro.'
+      : 'Puedes reaccionar con una pulla carinosa sobre ese otro personaje, como quien reconoce un nombre que ya tiene historia en el barrio.',
+    'Hazlo en una frase breve y original desde tu personaje, sin explicar el mecanismo.'
+  ].join('\n');
+}
+
+export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, pendingRelayContext, namePromptContext, nameEchoContext, placeTruthContext, responseRhythmContext){
   return [
     WORLD_PROMPT.trim(),
     'Ritmo de este turno:',
@@ -266,7 +318,9 @@ export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, r
     memoryContext,
     repertoireContext,
     relayContext,
+    pendingRelayContext,
     namePromptContext,
+    nameEchoContext,
     antiRepetitionContext
   ].join('\n\n');
 }
@@ -280,8 +334,10 @@ export function buildChatMessages({
   availableRepertoireCount = selectedRepertoire.length,
   selectedRelationships = [],
   selectedRelayMessages = [],
+  pendingRelayMessages = [],
   selectedNamePrompts = [],
-  selectedPlaceTruths = []
+  selectedPlaceTruths = [],
+  nameEcho = null
 }){
   const shouldAskUserName = selectedNamePrompts.length > 0;
   const recent = conversation.slice(-12).map((message) => ({
@@ -299,7 +355,9 @@ export function buildChatMessages({
         buildRepertoireContext(agent, selectedRepertoire, availableRepertoireCount),
         relationshipLines(selectedRelationships),
         buildRelayContext(selectedRelayMessages),
+        buildPendingRelayContext(pendingRelayMessages),
         buildNamePromptContext(selectedNamePrompts),
+        buildNameEchoContext(nameEcho),
         buildPlaceTruthContext(agent, selectedPlaceTruths),
         selectResponseRhythm({shouldAskUserName})
       )

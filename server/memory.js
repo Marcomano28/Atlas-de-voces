@@ -8,6 +8,33 @@ function normalizeText(value = ''){
     .toLowerCase();
 }
 
+function agentNameMatch(value, agents){
+  const normalizedValue = normalizeText(value).trim();
+
+  if(!normalizedValue) return null;
+
+  return agents.find((agent) => {
+    const aliases = [
+      agent.id,
+      agent.id.replace(/-/g, ' '),
+      agent.name,
+      agent.name.replace(/\s+/g, ' ')
+    ].map((alias) => normalizeText(alias).trim());
+
+    return aliases.includes(normalizedValue);
+  }) || null;
+}
+
+function localNameMatch(value, activeAgent){
+  const normalizedValue = normalizeText(value).trim();
+
+  if(!normalizedValue) return null;
+
+  return (activeAgent.localNames || []).find((localName) => (
+    (localName.matches || []).map((match) => normalizeText(match).trim()).includes(normalizedValue)
+  )) || null;
+}
+
 function createSession(sessionId){
   return {
     id: sessionId,
@@ -17,6 +44,7 @@ function createSession(sessionId){
     userNotes: [],
     agentNotes: {},
     crossAgentNotes: [],
+    pendingRelayMessages: [],
     namePromptAskedByAgent: {},
     namePromptCount: 0,
     usedRepertoire: {},
@@ -69,7 +97,7 @@ export function createMemoryStore(){
     const session = getSession(sessionId);
     const clean = text.trim();
 
-    if(!clean) return;
+    if(!clean) return null;
 
     const explicitNameMatch = clean.match(/\b(?:me llamo|mi nombre es|me dicen|me llaman)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'-]*(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'-]*){0,2})(?=\s*(?:[,.;!?]|$|\sy\b|\spero\b))/i);
     const soyNameMatch = !/\bsoy\s+(?:de|un|una|el|la|del|de la)\b/i.test(clean)
@@ -85,8 +113,45 @@ export function createMemoryStore(){
     const rememberMatch = clean.match(/\b(?:recuerda que|acuérdate que|acuerdate que)\s+([^.!?]{2,110})/i);
 
     if(nameMatch){
-      session.userName = nameMatch[1].trim();
+      const capturedName = nameMatch[1].trim();
+      const matchedAgent = agentNameMatch(capturedName, agents);
+      const activeAgent = agents.find((agent) => agent.id === agentId);
+      const matchedLocalName = activeAgent
+        ? localNameMatch(capturedName, activeAgent)
+        : null;
+
+      session.userName = capturedName;
       addUniqueNote(session.userNotes, `El usuario se presento como ${session.userName}.`);
+
+      if(matchedAgent){
+        addUniqueNote(session.userNotes, `El nombre del usuario coincide con ${matchedAgent.name}; tratalo como nombre valido salvo que el usuario lo rectifique.`);
+      }
+      if(matchedLocalName){
+        addUniqueNote(session.userNotes, `El nombre del usuario le recuerda a ${activeAgent.name} a ${matchedLocalName.displayName || capturedName}; tratalo como asociacion local, no como identidad confirmada.`);
+      }
+
+      session.updatedAt = new Date().toISOString();
+
+      if(matchedAgent || matchedLocalName){
+        return {
+          capturedName,
+          matchedAgent: matchedAgent
+            ? {
+              id: matchedAgent.id,
+              name: matchedAgent.name
+            }
+            : null,
+          matchedLocalName: matchedLocalName
+            ? {
+              id: matchedLocalName.id,
+              displayName: matchedLocalName.displayName || capturedName,
+              line: matchedLocalName.line,
+              tone: matchedLocalName.tone,
+              ifDenied: matchedLocalName.ifDenied
+            }
+            : null
+        };
+      }
     }
     if(originMatch) addUniqueNote(session.userNotes, `El usuario menciono relacion con ${originMatch[1].trim()}.`);
     if(likesMatch) addUniqueNote(session.userNotes, `Al usuario le interesa ${likesMatch[1].trim()}.`);
@@ -103,6 +168,8 @@ export function createMemoryStore(){
         `Hablando con ${agentId}, el usuario menciono a ${agent.name}: "${clean.slice(0, 140)}".`
       );
     });
+
+    return null;
   }
 
   function addAgentObservation(sessionId, agentId, note){
@@ -114,6 +181,73 @@ export function createMemoryStore(){
 
     addUniqueNote(session.agentNotes[agentId], note);
     session.updatedAt = new Date().toISOString();
+  }
+
+  function addPendingRelayMessage(sessionId, message){
+    const session = getSession(sessionId);
+    const cleanText = String(message.text || '').trim();
+
+    if(!message.from || !message.to || !cleanText) return;
+
+    const alreadyPending = session.pendingRelayMessages.some((item) => (
+      !item.deliveredAt
+      && item.from === message.from
+      && item.to === message.to
+      && item.text === cleanText
+    ));
+
+    if(alreadyPending) return;
+
+    session.pendingRelayMessages.push({
+      id: `${Date.now()}-${session.pendingRelayMessages.length + 1}`,
+      from: message.from,
+      to: message.to,
+      text: cleanText,
+      tone: message.tone || null,
+      createdAt: new Date().toISOString(),
+      deliveredAt: null
+    });
+    session.pendingRelayMessages = session.pendingRelayMessages.slice(-8);
+    session.updatedAt = new Date().toISOString();
+  }
+
+  function markPendingRelayMessagesFromReply(sessionId, agent, selectedRelayMessages, reply){
+    const normalizedReply = normalizeText(reply);
+
+    selectedRelayMessages.forEach((item) => {
+      const normalizedText = normalizeText(item.text);
+      const firstChunk = normalizedText.slice(0, Math.min(42, normalizedText.length));
+
+      if(normalizedReply.includes(normalizedText) || normalizedReply.includes(firstChunk)){
+        addPendingRelayMessage(sessionId, {
+          from: agent.id,
+          to: item.target,
+          text: item.text,
+          tone: item.tone
+        });
+      }
+    });
+  }
+
+  function getPendingRelayMessagesForAgent(sessionId, agentId){
+    return getSession(sessionId).pendingRelayMessages
+      .filter((item) => item.to === agentId && !item.deliveredAt)
+      .slice(0, 2);
+  }
+
+  function markPendingRelayMessagesDelivered(sessionId, agentId, deliveredIds = []){
+    if(!deliveredIds.length) return;
+
+    const session = getSession(sessionId);
+    const delivered = new Set(deliveredIds);
+    const deliveredAt = new Date().toISOString();
+
+    session.pendingRelayMessages.forEach((item) => {
+      if(item.to === agentId && delivered.has(item.id) && !item.deliveredAt){
+        item.deliveredAt = deliveredAt;
+      }
+    });
+    session.updatedAt = deliveredAt;
   }
 
   function buildMemoryContext(sessionId, agentId){
@@ -249,6 +383,7 @@ export function createMemoryStore(){
       userNotes: session.userNotes,
       agentNotes: session.agentNotes,
       crossAgentNotes: session.crossAgentNotes,
+      pendingRelayMessages: session.pendingRelayMessages,
       namePromptAskedByAgent: session.namePromptAskedByAgent,
       namePromptCount: session.namePromptCount,
       usedRepertoire: session.usedRepertoire,
@@ -263,13 +398,17 @@ export function createMemoryStore(){
 
   return {
     addAgentObservation,
+    addPendingRelayMessage,
     appendMessage,
     buildMemoryContext,
     getAvailableRepertoire,
     getConversation,
+    getPendingRelayMessagesForAgent,
     getSession,
     getUsedPlaceLineIds,
     markNamePromptAskedFromReply,
+    markPendingRelayMessagesDelivered,
+    markPendingRelayMessagesFromReply,
     markUsedRepertoireFromReply,
     markUsedPlaceLinesFromReply,
     rememberFromUserMessage,

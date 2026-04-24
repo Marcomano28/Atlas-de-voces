@@ -46,6 +46,8 @@ const PLANET_DRAG_EPSILON = 0.00001;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const BETA_ACCESS_REQUIRED = import.meta.env.VITE_BETA_ACCESS_REQUIRED === 'true';
 const BETA_ACCESS_CODE_STORAGE_KEY = 'planeta-barrio-beta-access-code';
+const AMBIENT_AUDIO_STORAGE_KEY = 'planeta-barrio-ambient-audio-enabled';
+const AMBIENT_AUDIO_FADE_SECONDS = 1.2;
 
 function getCityTransform(lat, lon){
   var phi = (lat * Math.PI/180);
@@ -76,6 +78,11 @@ let cityPoints = [
     coords: {lat: 23.1303, lng: -82.3531},
     texture: defaultPanorama,
     view: {yaw: -78, pitch: 0},
+    audio: {
+      ambient: '/audio/habana-portal.mp3',
+      volume: 0.58,
+      label: 'Portal de La Habana'
+    },
     character: {
       agentId: 'domingo',
       name: 'Domingo',
@@ -104,6 +111,11 @@ let cityPoints = [
     },
     texture: rotaPanorama,
     view: {yaw: -110, pitch: -12},
+    audio: {
+      ambient: '/audio/rota-calle.mp3',
+      volume: 0.12,
+      label: 'Calle de Rota'
+    },
     character: {
       agentId: 'paco',
       name: 'Paco',
@@ -132,6 +144,11 @@ let cityPoints = [
     },
     texture: trinidadPanorama,
     view: {yaw: -80, pitch: -10},
+    audio: {
+      ambient: '/audio/trinidad-tarde.mp3',
+      volume: 0.2,
+      label: 'Tarde en Trinidad'
+    },
     character: {
       agentId: 'yanislaidis',
       name: 'Yanislaidis',
@@ -160,6 +177,11 @@ let cityPoints = [
     },
     texture: playaPanorama,
     view: {yaw: -120, pitch: -17},
+    audio: {
+      ambient: '/audio/habana-41y42-vecinos.mp3',
+      volume: 0.08,
+      label: '41 y 42'
+    },
     character: {
       agentId: 'marta-nora',
       name: 'Marta Nora',
@@ -188,6 +210,11 @@ let cityPoints = [
     },
     texture: centroHabanaPanorama,
     view: {yaw: -80, pitch: -10},
+    audio: {
+      ambient: '/audio/centro-habana-pregon.mp3',
+      volume: 0.32,
+      label: 'Centro Habana'
+    },
     character: {
       agentId: 'manisera',
       name: 'La manisera',
@@ -260,6 +287,11 @@ export default class WorldTour{
     this.chatSessionId = this.getChatSessionId();
     this.betaAccessRequired = BETA_ACCESS_REQUIRED;
     this.betaAccessCode = this.getBetaAccessCode();
+    this.ambientAudioEnabled = this.getAmbientAudioEnabled();
+    this.ambientAudioGestureGranted = false;
+    this.ambientAudioElement = null;
+    this.ambientAudioSource = '';
+    this.ambientAudioStatus = 'idle';
     this.currentView = null;
     this.brandTitleCompactMode = null;
     this.brandTitleTimeline = null;
@@ -341,6 +373,20 @@ setBetaAccessCode(code){
   }
 
   window.localStorage?.removeItem(BETA_ACCESS_CODE_STORAGE_KEY);
+}
+
+getAmbientAudioEnabled(){
+  return window.localStorage?.getItem(AMBIENT_AUDIO_STORAGE_KEY) === 'true';
+}
+
+setAmbientAudioEnabled(enabled){
+  this.ambientAudioEnabled = Boolean(enabled);
+  window.localStorage?.setItem(AMBIENT_AUDIO_STORAGE_KEY, this.ambientAudioEnabled ? 'true' : 'false');
+  this.updateAmbientAudioButton();
+}
+
+getAmbientAudioVolume(city = this.activeCity){
+  return clamp(city?.audio?.volume ?? 0.28, 0, 1);
 }
 
 createDialogueUI(){
@@ -1284,6 +1330,16 @@ setupExitButton(list){
     this.exitCity();
   });
   list.appendChild(this.exitButton);
+
+  this.ambientAudioButton = document.createElement('button');
+  this.ambientAudioButton.type = 'button';
+  this.ambientAudioButton.className = 'ambient-audio-toggle';
+  this.ambientAudioButton.hidden = true;
+  this.ambientAudioButton.addEventListener('click', () => {
+    this.toggleAmbientAudio();
+  });
+  list.appendChild(this.ambientAudioButton);
+  this.updateAmbientAudioButton();
 }
 
 updateExitButton(){
@@ -1291,8 +1347,31 @@ updateExitButton(){
 
   this.exitButton.hidden = !(this.isInsideCity || this.isTransitioning);
   this.exitButton.disabled = this.isTransitioning;
+  this.updateAmbientAudioButton();
   this.updateViewState();
   this.updateDialogueUI();
+}
+
+updateAmbientAudioButton(){
+  if(!this.ambientAudioButton) return;
+
+  const hasAudio = Boolean(this.activeCity?.audio?.ambient);
+  const canShow = hasAudio && (this.isInsideCity || this.isTransitioning);
+
+  this.ambientAudioButton.hidden = !canShow;
+  this.ambientAudioButton.disabled = this.isTransitioning;
+  const isPlaying = this.ambientAudioEnabled && this.ambientAudioStatus === 'playing';
+
+  this.ambientAudioButton.classList.toggle('is-active', isPlaying);
+  this.ambientAudioButton.setAttribute('aria-pressed', isPlaying ? 'true' : 'false');
+
+  if(!hasAudio){
+    this.ambientAudioButton.textContent = 'Sonido';
+  }else if(this.ambientAudioStatus === 'missing'){
+    this.ambientAudioButton.textContent = 'Audio no disponible';
+  }else{
+    this.ambientAudioButton.textContent = isPlaying ? 'Silenciar escena' : 'Sonido ambiente';
+  }
 }
 
 updateViewState(){
@@ -1318,6 +1397,103 @@ updateControls(){
     this.isDraggingPlanet = false;
     this.planetDragDelta.set(0, 0);
   }
+}
+
+getAmbientAudioElement(){
+  if(this.ambientAudioElement) return this.ambientAudioElement;
+
+  const audio = new Audio();
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.volume = 0;
+  audio.addEventListener('error', () => {
+    this.ambientAudioStatus = 'missing';
+    this.updateAmbientAudioButton();
+  });
+  this.ambientAudioElement = audio;
+
+  return audio;
+}
+
+setAmbientAudioSource(city){
+  const source = city?.audio?.ambient || '';
+  const audio = this.getAmbientAudioElement();
+
+  if(this.ambientAudioSource === source) return audio;
+
+  gsap.killTweensOf(audio);
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = 0;
+  audio.src = source;
+  this.ambientAudioSource = source;
+  this.ambientAudioStatus = source ? 'ready' : 'idle';
+  this.updateAmbientAudioButton();
+
+  return audio;
+}
+
+async playAmbientAudioForCity(city, {forceGesture = false} = {}){
+  if(!city?.audio?.ambient || !this.ambientAudioEnabled) return;
+  if(!forceGesture && !this.ambientAudioGestureGranted) return;
+
+  const audio = this.setAmbientAudioSource(city);
+  const targetVolume = this.getAmbientAudioVolume(city);
+
+  try{
+    audio.volume = 0;
+    await audio.play();
+    this.ambientAudioStatus = 'playing';
+    this.updateAmbientAudioButton();
+    gsap.killTweensOf(audio);
+    gsap.to(audio, {
+      volume: targetVolume,
+      duration: AMBIENT_AUDIO_FADE_SECONDS,
+      ease: 'power2.out'
+    });
+  }catch(error){
+    this.ambientAudioStatus = 'idle';
+    this.ambientAudioGestureGranted = false;
+    this.setAmbientAudioEnabled(false);
+  }
+}
+
+stopAmbientAudio({clearSource = false} = {}){
+  if(!this.ambientAudioElement) return;
+
+  const audio = this.ambientAudioElement;
+  gsap.killTweensOf(audio);
+  gsap.to(audio, {
+    volume: 0,
+    duration: AMBIENT_AUDIO_FADE_SECONDS * 0.75,
+    ease: 'power2.in',
+    onComplete: () => {
+      audio.pause();
+
+      if(clearSource){
+        audio.removeAttribute('src');
+        audio.load();
+        this.ambientAudioSource = '';
+        this.ambientAudioStatus = 'idle';
+      }
+
+      this.updateAmbientAudioButton();
+    }
+  });
+}
+
+toggleAmbientAudio(){
+  this.ambientAudioGestureGranted = true;
+  const shouldStart = !this.ambientAudioEnabled || this.ambientAudioStatus !== 'playing';
+
+  if(shouldStart){
+    this.setAmbientAudioEnabled(true);
+    this.playAmbientAudioForCity(this.activeCity, {forceGesture: true});
+    return;
+  }
+
+  this.setAmbientAudioEnabled(false);
+  this.stopAmbientAudio();
 }
 
 setupPlanetDrag(){
@@ -1546,6 +1722,7 @@ setCityCharacter(city){
 enterCity(city){
   this.activeCity = city;
   this.hideSpeechBubble();
+  this.setAmbientAudioSource(city);
   this.setPanoramaTexture(city.texture);
   this.setPanoramaView(city);
   this.setCityCharacter(city);
@@ -1559,6 +1736,7 @@ enterCity(city){
       this.isTransitioning = false;
       this.updateExitButton();
       this.updateControls();
+      this.playAmbientAudioForCity(city);
     }
   })
 }
@@ -1569,6 +1747,7 @@ exitCity(){
   this.isTransitioning = true;
   this.updateExitButton();
   this.updateControls();
+  this.stopAmbientAudio({clearSource: true});
   this.material.uniforms.direction.value = -1;
   gsap.to(this.transition, {
     duration: 1,

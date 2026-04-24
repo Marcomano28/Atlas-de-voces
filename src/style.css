@@ -339,6 +339,29 @@ body[data-view="transition"] #list div {
   opacity: 0.42;
 }
 
+.ambient-audio-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: rgba(248, 250, 246, 0.86);
+  color: #143f4b;
+  font: 700 14px/1.1 system-ui, sans-serif;
+  letter-spacing: 0;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.ambient-audio-toggle.is-active {
+  background: #143f4b;
+  color: #fff;
+}
+
+.ambient-audio-toggle:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
 .beta-access {
   position: fixed;
   inset: 0;

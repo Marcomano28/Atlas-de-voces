@@ -280,6 +280,7 @@ export function buildNameEchoContext(nameEcho = null){
       `El usuario acaba de presentarse como "${nameEcho.capturedName}". A ${nameEcho.activeAgentId} ese nombre le recuerda a ${nameEcho.matchedLocalName.displayName}.`,
       'Acepta el nombre del usuario como valido; esta asociacion local no confirma que sea esa persona.',
       `Frase local candidata: "${nameEcho.matchedLocalName.line}"`,
+      nameEcho.matchedLocalName.relationshipLine ? `Relacion local asociada: ${nameEcho.matchedLocalName.relationshipLine}` : null,
       nameEcho.matchedLocalName.tone ? `Tono: ${nameEcho.matchedLocalName.tone}` : null,
       nameEcho.matchedLocalName.ifDenied ? `Si el usuario rectifica despues: ${nameEcho.matchedLocalName.ifDenied}` : null,
       'Puedes usar la frase literal o casi literal si entra natural; debe sonar a pueblo chico, no a ficha de base de datos.'

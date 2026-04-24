@@ -14,6 +14,8 @@ const SITUATION_PATTERNS = {
   sensory_selling: /\b(olor|huele|hueles|aroma|mani|tostad|hambre|caliente|caldero)\b/,
   setting_boundary: /\b(respeto|bruto|agresiv|provoc|mirad|hombre|sentimiento|promesa|dinero|arrim|limite)\b/,
   name_memory_surprise: /\b(de donde sabes mi nombre|de dónde sabes mi nombre|como sabes mi nombre|cómo sabes mi nombre|quien te dijo mi nombre|quién te dijo mi nombre|yo no te dije mi nombre|no te dije mi nombre|sabes mi nombre)\b/,
+  local_name_denial: /\b(no soy esa|no soy ese|no soy la|no soy el|no,? no soy|te equivocas|esa no soy|ese no soy)\b/,
+  neighborhood_entry: /\b(vengo de visita|estoy de visita|quiero conocer|conocer el barrio|mirar el barrio|nuevo por aqui|nueva por aqui|ca[ií] por aqui|acabo de llegar|entrar al barrio)\b/,
   talking_about_character: /\b(domingo|paco|yanislaidis|marta|nora|manisera)\b/,
   relay_message: /\b(dile|decirle|recado|mensaje|cuando lo veas|cuando la veas|si lo ves|si la ves)\b/,
   ask_user_name: /\b(nombre|llamas|llaman|present|registro|amigos|mama|mam[aá])\b/

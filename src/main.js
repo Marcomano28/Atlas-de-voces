@@ -37,6 +37,9 @@ const SPEECH_BUBBLE_REVEAL_DELAY_SHORT = 34;
 const SPEECH_BUBBLE_REVEAL_DELAY_LONG = 24;
 const SPEECH_BUBBLE_REVEAL_PAUSE_SOFT = 34;
 const SPEECH_BUBBLE_REVEAL_PAUSE_HARD = 62;
+const SPEECH_BUBBLE_STREAM_DELAY = 18;
+const SPEECH_BUBBLE_STREAM_BATCH = 2;
+const SPEECH_BUBBLE_STREAM_CATCHUP_THRESHOLD = 90;
 const PLANET_DRAG_DAMPING = 0.88;
 const PLANET_DRAG_RESPONSE = 1 - PLANET_DRAG_DAMPING;
 const PLANET_DRAG_EPSILON = 0.00001;
@@ -268,6 +271,9 @@ export default class WorldTour{
     this.speechBubbleRenderedText = '';
     this.speechBubbleRevealTimeout = null;
     this.speechBubbleRevealToken = 0;
+    this.speechBubbleStreamTimeout = null;
+    this.speechBubbleStreamToken = 0;
+    this.speechBubbleStreamResolve = null;
     this.speechBubbleSize = {w: SPEECH_BUBBLE_MIN_WIDTH, h: SPEECH_BUBBLE_MIN_HEIGHT};
     this.speechTailWorld = new THREE.Vector3();
     this.speechAnchorWorld = new THREE.Vector3();
@@ -706,13 +712,17 @@ async submitDialogueMessage(){
   this.showSpeechBubble('', {typing: true});
 
   try{
+    this.prepareSpeechBubbleStream();
+
     const reply = await this.sendAgentMessage(text, {
       onDelta: (partialText) => {
-        this.showSpeechBubble(partialText, {reveal: false});
+        this.updateSpeechBubbleStreamTarget(partialText);
       }
     });
 
-    if(this.speechBubbleText !== reply || this.speechBubbleTyping){
+    if(this.speechBubbleText !== reply || this.speechBubbleTyping || this.speechBubbleRenderedText !== reply){
+      await this.finishSpeechBubbleStream(reply);
+    }else{
       this.showSpeechBubble(reply, {reveal: false});
     }
   }catch(error){
@@ -869,6 +879,7 @@ async readAgentMessageStream(response, options = {}){
 }
 
 showSpeechBubble(text, options = {}){
+  this.clearSpeechBubbleStream();
   this.clearSpeechBubbleReveal();
   this.speechBubbleTyping = Boolean(options.typing);
   this.speechBubbleText = text;
@@ -885,6 +896,7 @@ showSpeechBubble(text, options = {}){
 }
 
 hideSpeechBubble(){
+  this.clearSpeechBubbleStream();
   this.clearSpeechBubbleReveal();
   this.speechBubbleVisible = false;
   this.speechBubbleTyping = false;
@@ -945,6 +957,119 @@ clearSpeechBubbleReveal(){
     window.clearTimeout(this.speechBubbleRevealTimeout);
     this.speechBubbleRevealTimeout = null;
   }
+}
+
+clearSpeechBubbleStream({resolve = true} = {}){
+  this.speechBubbleStreamToken += 1;
+
+  if(this.speechBubbleStreamTimeout){
+    window.clearTimeout(this.speechBubbleStreamTimeout);
+    this.speechBubbleStreamTimeout = null;
+  }
+
+  if(resolve && this.speechBubbleStreamResolve){
+    this.speechBubbleStreamResolve();
+    this.speechBubbleStreamResolve = null;
+  }
+}
+
+prepareSpeechBubbleStream(){
+  this.clearSpeechBubbleStream();
+  this.clearSpeechBubbleReveal();
+  this.speechBubbleTyping = true;
+  this.speechBubbleText = '';
+  this.speechBubbleRenderedText = '';
+  this.speechBubbleVisible = true;
+  this.speechBubbleElement.classList.add('is-visible');
+  this.speechBubbleElement.classList.remove('is-offscreen');
+  this.updateSpeechBubbleSize();
+  this.updateSpeechBubblePosition();
+}
+
+updateSpeechBubbleStreamTarget(targetText){
+  if(!targetText && !this.speechBubbleText) return;
+
+  const wasTyping = this.speechBubbleTyping;
+  this.speechBubbleTyping = false;
+  this.speechBubbleText = targetText;
+  this.speechBubbleVisible = true;
+  this.speechBubbleElement.classList.add('is-visible');
+  this.speechBubbleElement.classList.remove('is-offscreen');
+
+  if(wasTyping){
+    this.speechBubbleRenderedText = '';
+  }
+
+  this.updateSpeechBubbleSize();
+  this.updateSpeechBubblePosition();
+  this.scheduleSpeechBubbleStreamStep();
+}
+
+getSpeechBubbleStreamDelay(previousChar){
+  if(/[,:;]$/.test(previousChar)) return SPEECH_BUBBLE_STREAM_DELAY + 28;
+  if(/[.!?…]$/.test(previousChar)) return SPEECH_BUBBLE_STREAM_DELAY + 52;
+
+  return SPEECH_BUBBLE_STREAM_DELAY;
+}
+
+scheduleSpeechBubbleStreamStep(){
+  if(this.speechBubbleStreamTimeout || this.speechBubbleTyping) return;
+  if(this.speechBubbleRenderedText.length >= this.speechBubbleText.length) return;
+
+  const streamToken = this.speechBubbleStreamToken;
+
+  const step = () => {
+    if(
+      streamToken !== this.speechBubbleStreamToken ||
+      !this.speechBubbleVisible ||
+      this.speechBubbleTyping
+    ){
+      return;
+    }
+
+    const remaining = this.speechBubbleText.length - this.speechBubbleRenderedText.length;
+    const batch = remaining > SPEECH_BUBBLE_STREAM_CATCHUP_THRESHOLD
+      ? SPEECH_BUBBLE_STREAM_BATCH + 3
+      : remaining > 36
+        ? SPEECH_BUBBLE_STREAM_BATCH + 1
+        : SPEECH_BUBBLE_STREAM_BATCH;
+    const nextLength = Math.min(this.speechBubbleRenderedText.length + batch, this.speechBubbleText.length);
+    const previousChar = this.speechBubbleText.charAt(nextLength - 1);
+
+    this.speechBubbleRenderedText = this.speechBubbleText.slice(0, nextLength);
+    this.speechBubbleTextElement.textContent = this.speechBubbleRenderedText;
+
+    if(nextLength >= this.speechBubbleText.length){
+      this.speechBubbleStreamTimeout = null;
+
+      if(this.speechBubbleStreamResolve){
+        this.speechBubbleStreamResolve();
+        this.speechBubbleStreamResolve = null;
+      }
+
+      return;
+    }
+
+    this.speechBubbleStreamTimeout = window.setTimeout(
+      step,
+      this.getSpeechBubbleStreamDelay(previousChar)
+    );
+  };
+
+  this.speechBubbleStreamTimeout = window.setTimeout(step, SPEECH_BUBBLE_STREAM_DELAY);
+}
+
+finishSpeechBubbleStream(finalText){
+  this.updateSpeechBubbleStreamTarget(finalText);
+
+  if(this.speechBubbleRenderedText.length >= this.speechBubbleText.length){
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    this.speechBubbleStreamResolve = resolve;
+    this.scheduleSpeechBubbleStreamStep();
+  });
 }
 
 getSpeechBubbleRevealDelay(previousWord, totalWords){

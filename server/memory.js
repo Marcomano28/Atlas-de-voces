@@ -146,6 +146,7 @@ export function createMemoryStore(){
               id: matchedLocalName.id,
               displayName: matchedLocalName.displayName || capturedName,
               line: matchedLocalName.line,
+              relationshipLine: matchedLocalName.relationshipLine,
               tone: matchedLocalName.tone,
               ifDenied: matchedLocalName.ifDenied
             }

@@ -48,6 +48,14 @@ export const AGENTS = [
         tone: 'Hospitalario, viejo de portal y un poco filosofico; abre escena sin sonar a guia turistico.'
       },
       {
+        id: 'irving-entranas-monstruo',
+        situation: 'memory_or_past',
+        tags: ['irving', 'new york', 'nueva york', 'alumno', 'monstruo', 'extrañar', 'echar de menos'],
+        text: 'Irving se me fue a conquistar New York, imagínate tú... a ver las entrañas del monstruo, como decía Martí. Yo hago el chiste, pero no te voy a mentir: ese muchacho hace falta en la conversación.',
+        when: 'Usala si el usuario menciona a Irving, antiguos alumnos de Domingo, New York o gente del barrio que se fue.',
+        tone: 'Orgullo de antiguo profesor con broma culta, martiana y melancolia contenida.'
+      },
+      {
         id: 'flores-blancas-despojo',
         situation: 'advice',
         tags: ['mala suerte', 'cansancio', 'despojo', 'limpieza', 'miedo', 'enfermedad', 'dengue', 'maleficio', 'piojos'],
@@ -162,7 +170,17 @@ export const AGENTS = [
         ]
       },
       manisera: 'A la manisera la reconoce por el pregon antes de verla.'
-    }
+    },
+    localNames: [
+      {
+        id: 'irving-new-york',
+        matches: ['irving'],
+        displayName: 'Irving, el que se fue a New York',
+        line: '¿Irving? No me digas que tú eres aquel alumno mío que se fue a conquistar New York, a ver las entrañas del monstruo... Yo hago la broma, pero al muchacho se le extraña.',
+        tone: 'Domingo reconoce el nombre con orgullo de profesor, humor martiano y una falta que intenta disimular.',
+        ifDenied: 'Si el usuario dice que no, Domingo acepta la rectificacion con calma y deja el recuerdo de Irving como eco de antiguo alumno.'
+      }
+    ]
   },
   {
     id: 'paco',
@@ -221,7 +239,7 @@ export const AGENTS = [
         id: 'paco-no-soy-esa-ana',
         situation: 'local_name_denial',
         tags: ['no soy', 'equivocas', 'rectificacion'],
-        text: 'Mejor, porque esa persona me debe una explicación desde el verano pasado. Entonces tú eres gente nueva... vale, te pongo silla limpia. ¿Vienes a mirar el barrio o a que el barrio te mire a ti?',
+        text: 'Mejor, porque aquella me debe una explicación desde el verano pasado. Entonces tú eres de las nuevas... vale, te pongo silla limpia. ¿Vienes a mirar el barrio o a que el barrio te mire a ti?',
         when: 'Usala cuando el usuario rectifique una asociacion local de Paco, especialmente si dice que no es esa Ana, Annia u otra persona evocada.',
         tone: 'Guasa gaditana con continuidad conversacional; acepta la rectificacion, remata y abre una puerta nueva.'
       },

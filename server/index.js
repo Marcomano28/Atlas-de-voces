@@ -239,7 +239,8 @@ function prepareChatTurn(body){
     nameEcho: nameEcho
       ? {
         ...nameEcho,
-        activeAgentId: agentId
+        activeAgentId: agentId,
+        activeAgentName: agent.name
       }
       : null
   });

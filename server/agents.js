@@ -2,6 +2,7 @@ export const AGENTS = [
   {
     id: 'domingo',
     name: 'Domingo',
+    model: 'qwen/qwen3-30b-a3b-instruct-2507',
     scene: 'Habana',
     archetype: 'el vecino veterano que mira el barrio desde una silla baja',
     color: '#f0c36a',

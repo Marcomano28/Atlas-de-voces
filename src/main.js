@@ -83,7 +83,8 @@ let cityPoints = [
       ambient: '/audio/habana-portal.mp3',
       volume: 0.58,
       mobileVolume: 0.38,
-      label: 'Portal de La Habana'
+      label: 'Radio Reloj en el portal',
+      promptContext: 'Se escucha Radio Reloj de fondo en el portal de La Habana, mezclado con la calle. Domingo no necesita encender la radio: ya esta sonando si el usuario activo el sonido ambiente.'
     },
     character: {
       agentId: 'domingo',
@@ -117,7 +118,8 @@ let cityPoints = [
       ambient: '/audio/rota-calle.mp3',
       volume: 0.12,
       mobileVolume: 0.07,
-      label: 'Calle de Rota'
+      label: 'Jaleo de bar en la plaza de Rota',
+      promptContext: 'Se escucha de fondo un jaleo de bar en la plaza de Rota: musica, voces y ambiente de gente cerca. Paco puede comentar ese ruido como parte de la vida de plaza si encaja, pero no debe pedir que pongan musica si el sonido ambiente esta activo.'
     },
     character: {
       agentId: 'paco',
@@ -151,7 +153,8 @@ let cityPoints = [
       ambient: '/audio/trinidad-tarde.mp3',
       volume: 0.2,
       mobileVolume: 0.12,
-      label: 'Tarde en Trinidad'
+      label: 'Musica de baile en Trinidad',
+      promptContext: 'Se escucha una musica de baile de fondo en la escena de Trinidad, como ambiente de calle y cuerpo. Yanislaidis puede reaccionar a ese ritmo si encaja, pero no debe pedir que pongan musica si el sonido ambiente esta activo.'
     },
     character: {
       agentId: 'yanislaidis',
@@ -831,6 +834,11 @@ async sendAgentMessage(text, options = {}){
       sessionId: this.chatSessionId,
       agentId: this.activeCity.character.agentId,
       message: text,
+      ambientAudio: {
+        enabled: this.ambientAudioEnabled && this.ambientAudioStatus === 'playing',
+        label: this.activeCity.audio?.label || '',
+        context: this.activeCity.audio?.promptContext || ''
+      },
       stream: true
     })
   });

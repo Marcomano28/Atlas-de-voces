@@ -331,7 +331,24 @@ export function buildNameEchoContext(nameEcho = null){
   ].join('\n');
 }
 
-export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, pendingRelayContext, namePromptContext, nameEchoContext, placeTruthContext, sharedTruthContext, responseRhythmContext){
+function buildAmbientAudioContext(ambientAudio = null){
+  if(!ambientAudio?.enabled){
+    return [
+      'Sonido ambiente:',
+      'El sonido ambiente no esta confirmado como activo para este turno. No afirmes que se oye musica, radio o pregon salvo que el usuario lo mencione.'
+    ].join('\n');
+  }
+
+  return [
+    'Sonido ambiente activo:',
+    ambientAudio.label ? `- Audio: ${ambientAudio.label}` : null,
+    ambientAudio.context ? `- Contexto: ${ambientAudio.context}` : null,
+    '- Puedes reaccionar a ese sonido como parte de la escena si encaja con la respuesta.',
+    '- No digas que quieres encender, poner o buscar ese sonido: ya esta sonando para el usuario.'
+  ].filter(Boolean).join('\n');
+}
+
+export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, pendingRelayContext, namePromptContext, nameEchoContext, placeTruthContext, sharedTruthContext, ambientAudioContext, responseRhythmContext){
   return [
     WORLD_PROMPT.trim(),
     'Ritmo de este turno:',
@@ -342,6 +359,7 @@ export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, r
     `Rol publico: ${agent.publicRole}.`,
     placeTruthContext,
     sharedTruthContext,
+    ambientAudioContext,
     'Voz:',
     agent.voice.map((line) => `- ${line}`).join('\n'),
     'Limites:',
@@ -371,6 +389,7 @@ export function buildChatMessages({
   selectedNamePrompts = [],
   selectedPlaceTruths = [],
   selectedSharedTruths = [],
+  ambientAudio = null,
   nameEcho = null
 }){
   const shouldAskUserName = selectedNamePrompts.length > 0;
@@ -394,6 +413,7 @@ export function buildChatMessages({
         buildNameEchoContext(nameEcho),
         buildPlaceTruthContext(agent, selectedPlaceTruths),
         buildSharedTruthContext(selectedSharedTruths),
+        buildAmbientAudioContext(ambientAudio),
         selectResponseRhythm({shouldAskUserName})
       )
     },

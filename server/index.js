@@ -174,6 +174,16 @@ function createAgentObservation(agent, userText, reply){
   return `${agent.name} converso con el usuario sobre "${shortUser}" y respondio desde "${shortReply}".`;
 }
 
+function getAmbientAudioContext(body){
+  const ambientAudio = body.ambientAudio || {};
+
+  return {
+    enabled: Boolean(ambientAudio.enabled),
+    label: String(ambientAudio.label || '').slice(0, 80),
+    context: String(ambientAudio.context || '').slice(0, 360)
+  };
+}
+
 function prepareChatTurn(body){
   const agentId = body.agentId;
   const userText = String(body.message || '').trim();
@@ -243,6 +253,7 @@ function prepareChatTurn(body){
     selectedNamePrompts,
     selectedPlaceTruths,
     selectedSharedTruths,
+    ambientAudio: getAmbientAudioContext(body),
     nameEcho: nameEcho
       ? {
         ...nameEcho,

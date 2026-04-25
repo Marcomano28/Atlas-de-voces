@@ -48,6 +48,7 @@ const BETA_ACCESS_REQUIRED = import.meta.env.VITE_BETA_ACCESS_REQUIRED === 'true
 const BETA_ACCESS_CODE_STORAGE_KEY = 'planeta-barrio-beta-access-code';
 const AMBIENT_AUDIO_STORAGE_KEY = 'planeta-barrio-ambient-audio-enabled';
 const AMBIENT_AUDIO_FADE_SECONDS = 1.2;
+const AMBIENT_AUDIO_MOBILE_QUERY = '(max-width: 720px), (pointer: coarse)';
 
 function getCityTransform(lat, lon){
   var phi = (lat * Math.PI/180);
@@ -81,6 +82,7 @@ let cityPoints = [
     audio: {
       ambient: '/audio/habana-portal.mp3',
       volume: 0.58,
+      mobileVolume: 0.38,
       label: 'Portal de La Habana'
     },
     character: {
@@ -114,6 +116,7 @@ let cityPoints = [
     audio: {
       ambient: '/audio/rota-calle.mp3',
       volume: 0.12,
+      mobileVolume: 0.07,
       label: 'Calle de Rota'
     },
     character: {
@@ -147,6 +150,7 @@ let cityPoints = [
     audio: {
       ambient: '/audio/trinidad-tarde.mp3',
       volume: 0.2,
+      mobileVolume: 0.12,
       label: 'Tarde en Trinidad'
     },
     character: {
@@ -180,6 +184,7 @@ let cityPoints = [
     audio: {
       ambient: '/audio/habana-41y42-vecinos.mp3',
       volume: 0.08,
+      mobileVolume: 0.05,
       label: '41 y 42'
     },
     character: {
@@ -213,6 +218,7 @@ let cityPoints = [
     audio: {
       ambient: '/audio/centro-habana-pregon.mp3',
       volume: 0.32,
+      mobileVolume: 0.2,
       label: 'Centro Habana'
     },
     character: {
@@ -379,6 +385,10 @@ getAmbientAudioEnabled(){
   return window.localStorage?.getItem(AMBIENT_AUDIO_STORAGE_KEY) === 'true';
 }
 
+isMobileAudioTarget(){
+  return window.matchMedia?.(AMBIENT_AUDIO_MOBILE_QUERY).matches || false;
+}
+
 setAmbientAudioEnabled(enabled){
   this.ambientAudioEnabled = Boolean(enabled);
   window.localStorage?.setItem(AMBIENT_AUDIO_STORAGE_KEY, this.ambientAudioEnabled ? 'true' : 'false');
@@ -386,7 +396,12 @@ setAmbientAudioEnabled(enabled){
 }
 
 getAmbientAudioVolume(city = this.activeCity){
-  return clamp(city?.audio?.volume ?? 0.28, 0, 1);
+  const audio = city?.audio;
+  const volume = this.isMobileAudioTarget()
+    ? audio?.mobileVolume ?? audio?.volume
+    : audio?.volume;
+
+  return clamp(volume ?? 0.28, 0, 1);
 }
 
 createDialogueUI(){

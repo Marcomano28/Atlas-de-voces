@@ -54,6 +54,56 @@ La memoria futura deberia distinguir:
 
 No toda memoria debe aparecer explicitamente. A veces se nota solo en el trato.
 
+### Verdades Contradictorias Del Barrio
+
+El barrio no deberia tener una sola version de los hechos. Una forma de darle mas profundidad es introducir recuerdos, chismes o pequenos misterios compartidos que cada personaje cuenta desde su propia herida, orgullo, interes o sentido del humor.
+
+No son "misiones" ni acertijos cerrados. Son verdades sociales: cosas que pasaron, o que todo el mundo dice que pasaron, pero que cambian segun quien las cuenta.
+
+Ejemplo semilla:
+
+**La noche que Paco desaparecio en La Habana**
+
+- Domingo cree que Paco se perdio por romantico y por no saber quedarse quieto.
+- Paco lo cuenta como una aventura absurda, casi heroica, con media verdad y mucho teatro.
+- La manisera recuerda que aparecio comprando mani sin un peso, pero con cara de haber visto un fantasma.
+- Marta Nora sospecha que habia una mujer detras y que Paco embellece la historia para no quedar tan vulnerable.
+- Yanislaidis no le cree ni la mitad, pero sabe reconocer cuando una mentira protege algo cierto.
+
+La gracia esta en que el usuario pueda reconstruir el episodio circulando por el barrio. Cada personaje ofrece una version parcial, emocional y situada. Ninguno debe explicar "la verdad completa" como narrador omnisciente.
+
+Implementacion posible:
+
+- Crear un archivo estructurado, por ejemplo `server/sharedTruths.js`.
+- Cada verdad tendria `id`, `title`, `triggers`, `summary` y `versions` por personaje.
+- El selector del backend podria detectar temas del usuario y pasar solo la version del personaje activo al prompt.
+- Si el usuario ya escucho otra version, la memoria podria incluir un eco breve: "El usuario ya oyo a Domingo decir que Paco se perdio por romantico".
+- El personaje activo puede contradecir, defender, exagerar o corregir esa version, pero siempre desde su voz.
+- No conviene mostrar mas de una verdad compartida por turno. Debe sentirse como una grieta del mundo, no como una base de datos.
+
+Estructura tentativa:
+
+```js
+{
+  id: 'paco-desaparece-habana',
+  title: 'La noche que Paco desaparecio en La Habana',
+  triggers: ['paco', 'habana', 'panama', 'amor', 'perdido', 'noche'],
+  summary: 'Un episodio ambiguo de Paco en La Habana que todos recuerdan distinto.',
+  versions: {
+    domingo: {
+      angle: 'Paco se perdio por romantico y por hacerse el valiente.',
+      line: 'Ese dia Paco no se perdio en La Habana; se perdio en una idea que tenia de si mismo.',
+      tone: 'Profesor viejo, carinoso, con ironia de portal.'
+    },
+    paco: {
+      angle: 'Fue una aventura absurda y no piensa confesar la parte mas sentimental.',
+      line: 'Perderme, lo que se dice perderme, no me perdi. La Habana y yo tuvimos una diferencia de criterio.',
+      tone: 'Guasa gaditana defensiva, romantica sin admitirlo.'
+    }
+  }
+}
+```
+
 ### El Nombre Como Umbral
 
 El chat lo empieza el usuario, pero el barrio no debe tardar demasiado en devolverle la mirada. Despues de un par de intercambios, si el personaje todavia no sabe como se llama el usuario, puede preguntarlo a su manera.
@@ -196,6 +246,7 @@ Estas categorias ayudan a clasificar repertorio y recados:
 - Recados pendientes que el usuario pueda entregar realmente.
 - Memoria de confianza por personaje: desconocido, conocido, vecino, complice.
 - Recuerdos compartidos que cambien segun quien los cuenta.
+- Verdades contradictorias del barrio: pequenos episodios comunes que cada personaje recuerda, niega o exagera a su manera.
 - Objetivos de escena por personaje: vender, sonsacar, cuidar, provocar, enseñar, recordar.
 - Un archivo de "verdades del barrio" que ningun personaje cuenta igual.
 - Persistencia en SQLite/Postgres para produccion, con export legible a Markdown.

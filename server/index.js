@@ -7,6 +7,7 @@ import {createMemoryStore} from './memory.js';
 import {createFallbackReply, buildChatMessages} from './prompts.js';
 import {selectNamePromptForTurn, selectRelationshipContext, selectRelayMessagesForTurn, selectRepertoireForTurn} from './repertoire.js';
 import {selectPlaceTruthsForTurn} from './places.js';
+import {selectSharedTruthsForTurn} from './sharedTruths.js';
 import {createChatCompletion, createChatCompletionStream, getOpenRouterModel, hasOpenRouterKey} from './openrouter.js';
 
 loadEnvFile();
@@ -223,6 +224,11 @@ function prepareChatTurn(body){
     conversation,
     usedPlaceLineIds: memory.getUsedPlaceLineIds(sessionId, agentId)
   });
+  const selectedSharedTruths = selectSharedTruthsForTurn({
+    agent,
+    userText,
+    conversation
+  });
 
   const messages = buildChatMessages({
     agent,
@@ -236,6 +242,7 @@ function prepareChatTurn(body){
     pendingRelayMessages,
     selectedNamePrompts,
     selectedPlaceTruths,
+    selectedSharedTruths,
     nameEcho: nameEcho
       ? {
         ...nameEcho,

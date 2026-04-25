@@ -108,6 +108,35 @@ function buildPlaceTruthContext(agent, selectedPlaceTruths = []){
   ].join('\n\n');
 }
 
+function buildSharedTruthContext(selectedSharedTruths = []){
+  if(!selectedSharedTruths.length){
+    return [
+      'Verdades contradictorias del barrio:',
+      'No hay chisme compartido seleccionado para este turno.',
+      'No abras misterios nuevos ni digas "tengo que contarte algo" salvo que salga de la conversacion.'
+    ].join('\n');
+  }
+
+  return [
+    'Verdad contradictoria del barrio seleccionada:',
+    'Usala como anzuelo narrativo o memoria parcial, no como explicacion completa.',
+    'El personaje solo conoce y cuenta su version. Puede sugerir que otros lo cuentan distinto, pero no debe resolver la verdad entera.',
+    ...selectedSharedTruths.map((sharedTruth) => {
+      const version = sharedTruth.activeVersion;
+
+      return [
+        `Tema: ${sharedTruth.title}`,
+        `Resumen interno: ${sharedTruth.summary}`,
+        `Angulo de este personaje: ${version.angle}`,
+        `Apertura candidata: "${version.opening}"`,
+        `Linea candidata: "${version.line}"`,
+        `Tono: ${version.tone}`,
+        'Puedes usar la apertura o la linea, no necesariamente ambas. Deja una puerta abierta para que el usuario pregunte mas.'
+      ].join('\n');
+    })
+  ].join('\n\n');
+}
+
 function selectResponseRhythm({shouldAskUserName = false} = {}){
   if(shouldAskUserName){
     return 'Pregunta de confianza: responde breve y cierra preguntando el nombre del usuario de forma natural, usando la voz del personaje.';
@@ -302,7 +331,7 @@ export function buildNameEchoContext(nameEcho = null){
   ].join('\n');
 }
 
-export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, pendingRelayContext, namePromptContext, nameEchoContext, placeTruthContext, responseRhythmContext){
+export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, repertoireContext, relationshipContext, relayContext, pendingRelayContext, namePromptContext, nameEchoContext, placeTruthContext, sharedTruthContext, responseRhythmContext){
   return [
     WORLD_PROMPT.trim(),
     'Ritmo de este turno:',
@@ -312,6 +341,7 @@ export function buildSystemPrompt(agent, memoryContext, antiRepetitionContext, r
     `Arquetipo: ${agent.archetype}.`,
     `Rol publico: ${agent.publicRole}.`,
     placeTruthContext,
+    sharedTruthContext,
     'Voz:',
     agent.voice.map((line) => `- ${line}`).join('\n'),
     'Limites:',
@@ -340,6 +370,7 @@ export function buildChatMessages({
   pendingRelayMessages = [],
   selectedNamePrompts = [],
   selectedPlaceTruths = [],
+  selectedSharedTruths = [],
   nameEcho = null
 }){
   const shouldAskUserName = selectedNamePrompts.length > 0;
@@ -362,6 +393,7 @@ export function buildChatMessages({
         buildNamePromptContext(selectedNamePrompts),
         buildNameEchoContext(nameEcho),
         buildPlaceTruthContext(agent, selectedPlaceTruths),
+        buildSharedTruthContext(selectedSharedTruths),
         selectResponseRhythm({shouldAskUserName})
       )
     },

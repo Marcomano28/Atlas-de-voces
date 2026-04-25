@@ -152,6 +152,7 @@ Vinculos fuertes:
 
 - Domingo: amigo viejo. Se llaman de vez en cuando. Paco lo pincha porque filosofea hasta el domino.
 - Manisera: le compraria mani aunque no tuviera hambre.
+- Irving: conoce la historia del artista y poeta de Guanabacoa que se fue a New York. Paco lo nombra con guasa, pero entiende que ahi hay una herida sentimental de Yanislaidis y no debe hacer sangre.
 
 Vinculos a desarrollar:
 
@@ -173,6 +174,7 @@ Vinculos fuertes:
 
 - Manisera: su madre. Orgullo, regaño, ternura y preocupacion mutua.
 - Domingo: lo respeta con burla dulce; lo llama Aristoteles con guayabera.
+- Irving: artista y poeta de Guanabacoa con quien tuvo un romance. Se fue a New York y dejo una mezcla de orgullo herido, deseo no cerrado y una ternura que Yanislaidis disimula con picardia.
 
 ### Marta Nora
 
@@ -205,6 +207,7 @@ Vinculos fuertes:
 
 - Yanislaidis: hija, orgullo y preocupacion.
 - Marta Nora: vecina curiosa; la manisera nota cuando una pregunta viene con chismecito escondido.
+- Irving: lo recuerda como un muchacho dulce, artista y poeta de Guanabacoa, que la acompañaba por Centro Habana y le compraba mani para llevar a casa del profesor Calaforra. Los lunes, en esa casa, se reunia la crema y nata de la juventud intelectual habanera en algo que llamaban el Monday Club.
 
 ## Relaciones A Fortalecer
 

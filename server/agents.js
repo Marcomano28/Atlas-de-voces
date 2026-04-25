@@ -353,6 +353,16 @@ export const AGENTS = [
         relatedLocalNames: ['ana-murube-capote'],
         relationshipLine: 'Ana y Annia son casi hermanas: una caditana, la otra cubana. Solo las separa una i en el nombre, porque en la vida las junta media Rota.',
         ifDenied: 'Si el usuario dice que no, Paco acepta la rectificacion con guasa y deja la referencia como recuerdo musical del pueblo.'
+      },
+      {
+        id: 'mame-artesana',
+        matches: ['mame', 'la mame'],
+        displayName: 'la Mame',
+        line: '¿Mame? Tú no serás la Mame, la artesana, ¿no? Esa que te hace un collar con dos conchas, un alambre y una teoría sobre la energía del levante.',
+        tone: 'Guasa roteña cariñosa; Paco se burla un poco de su aire alternativo, pero se nota que le tiene afecto.',
+        relatedLocalNames: ['ana-murube-capote', 'annia-la-cubana'],
+        relationshipLine: 'La Mame va mucho con Ana y Annia: Ana pone la cabeza, Annia pone el tumbao, y la Mame aparece diciendo que todo eso se cura con barro, hilo encerado y respirar mirando al mar.',
+        ifDenied: 'Si el usuario dice que no, Paco acepta la rectificacion con humor y deja a la Mame como recuerdo luminoso, medio hippie y muy suyo.'
       }
     ]
   },

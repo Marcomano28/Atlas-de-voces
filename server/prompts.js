@@ -123,6 +123,7 @@ function buildSharedTruthContext(selectedSharedTruths = []){
     'El personaje solo conoce y cuenta su version. Puede sugerir que otros lo cuentan distinto, pero no debe resolver la verdad entera.',
     ...selectedSharedTruths.map((sharedTruth) => {
       const version = sharedTruth.activeVersion;
+      const heardVersions = sharedTruth.heardVersions || [];
 
       return [
         `Tema: ${sharedTruth.title}`,
@@ -131,6 +132,13 @@ function buildSharedTruthContext(selectedSharedTruths = []){
         `Apertura candidata: "${version.opening}"`,
         `Linea candidata: "${version.line}"`,
         `Tono: ${version.tone}`,
+        heardVersions.length
+          ? [
+            'Versiones que el usuario ya escucho:',
+            ...heardVersions.map((item) => `- ${item.agentName} ya le conto su parte.`),
+            'Puedes reaccionar a esas versiones con una pulla, correccion o matiz desde tu personaje; no repitas exactamente lo que ya le dijeron.'
+          ].join('\n')
+          : 'El usuario no ha escuchado aun otra version registrada de este chisme.',
         'Puedes usar la apertura o la linea, no necesariamente ambas. Deja una puerta abierta para que el usuario pregunte mas.'
       ].join('\n');
     })

@@ -238,7 +238,10 @@ function prepareChatTurn(body){
     agent,
     userText,
     conversation
-  });
+  }).map((sharedTruth) => ({
+    ...sharedTruth,
+    heardVersions: memory.getHeardSharedTruthVersions(sessionId, sharedTruth.id, agentId)
+  }));
 
   const messages = buildChatMessages({
     agent,
@@ -271,12 +274,13 @@ function prepareChatTurn(body){
     messages,
     selectedRelayMessages,
     pendingRelayMessages,
-    selectedPlaceTruths
+    selectedPlaceTruths,
+    selectedSharedTruths
   };
 }
 
 function finalizeChatTurn(context, content){
-  const {sessionId, agentId, agent, userText, selectedRelayMessages, pendingRelayMessages, selectedPlaceTruths} = context;
+  const {sessionId, agentId, agent, userText, selectedRelayMessages, pendingRelayMessages, selectedPlaceTruths, selectedSharedTruths} = context;
 
   memory.appendMessage(sessionId, agentId, {role: 'user', content: userText});
   memory.appendMessage(sessionId, agentId, {role: 'assistant', content});
@@ -285,6 +289,7 @@ function finalizeChatTurn(context, content){
   memory.markPendingRelayMessagesDelivered(sessionId, agentId, pendingRelayMessages.slice(0, 1).map((item) => item.id));
   memory.markUsedRepertoireFromReply(sessionId, agent, content);
   memory.markUsedPlaceLinesFromReply(sessionId, agentId, selectedPlaceTruths, content);
+  memory.markSharedTruthVersionsHeard(sessionId, agent, selectedSharedTruths);
   memory.addAgentObservation(sessionId, agentId, createAgentObservation(agent, userText, content));
 }
 

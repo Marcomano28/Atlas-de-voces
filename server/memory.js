@@ -49,6 +49,7 @@ function createSession(sessionId){
     namePromptCount: 0,
     usedRepertoire: {},
     usedPlaceLines: {},
+    heardSharedTruths: {},
     conversations: {}
   };
 }
@@ -373,6 +374,37 @@ export function createMemoryStore(){
       });
   }
 
+  function getHeardSharedTruthVersions(sessionId, sharedTruthId, currentAgentId = null){
+    const heard = getSession(sessionId).heardSharedTruths[sharedTruthId] || {};
+
+    return Object.entries(heard)
+      .filter(([agentId]) => agentId !== currentAgentId)
+      .map(([agentId, item]) => ({
+        agentId,
+        agentName: item.agentName || agentId,
+        heardAt: item.heardAt || null
+      }));
+  }
+
+  function markSharedTruthVersionsHeard(sessionId, agent, selectedSharedTruths = []){
+    if(!selectedSharedTruths.length) return;
+
+    const session = getSession(sessionId);
+    const heardAt = new Date().toISOString();
+
+    selectedSharedTruths.forEach((sharedTruth) => {
+      if(!session.heardSharedTruths[sharedTruth.id]){
+        session.heardSharedTruths[sharedTruth.id] = {};
+      }
+
+      session.heardSharedTruths[sharedTruth.id][agent.id] = {
+        agentName: agent.name,
+        heardAt
+      };
+    });
+    session.updatedAt = heardAt;
+  }
+
   function snapshot(sessionId){
     const session = getSession(sessionId);
 
@@ -389,6 +421,7 @@ export function createMemoryStore(){
       namePromptCount: session.namePromptCount,
       usedRepertoire: session.usedRepertoire,
       usedPlaceLines: session.usedPlaceLines,
+      heardSharedTruths: session.heardSharedTruths,
       conversations: session.conversations
     };
   }
@@ -405,6 +438,7 @@ export function createMemoryStore(){
     getAvailableRepertoire,
     getConversation,
     getPendingRelayMessagesForAgent,
+    getHeardSharedTruthVersions,
     getSession,
     getUsedPlaceLineIds,
     markNamePromptAskedFromReply,
@@ -412,6 +446,7 @@ export function createMemoryStore(){
     markPendingRelayMessagesFromReply,
     markUsedRepertoireFromReply,
     markUsedPlaceLinesFromReply,
+    markSharedTruthVersionsHeard,
     rememberFromUserMessage,
     reset,
     shouldPromptForUserName,

@@ -296,6 +296,9 @@ export default class WorldTour{
     this.ambientAudioEnabled = this.getAmbientAudioEnabled();
     this.ambientAudioGestureGranted = false;
     this.ambientAudioElement = null;
+    this.ambientAudioContext = null;
+    this.ambientAudioGain = null;
+    this.ambientAudioLevel = {value: 0};
     this.ambientAudioSource = '';
     this.ambientAudioStatus = 'idle';
     this.currentView = null;
@@ -1430,16 +1433,82 @@ getAmbientAudioElement(){
   return audio;
 }
 
+setupAmbientAudioGraph(){
+  if(this.ambientAudioGain) return true;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if(!AudioContextClass) return false;
+
+  try{
+    const audio = this.getAmbientAudioElement();
+    const context = this.ambientAudioContext || new AudioContextClass();
+    const source = context.createMediaElementSource(audio);
+    const gain = context.createGain();
+
+    gain.gain.value = 0;
+    source.connect(gain);
+    gain.connect(context.destination);
+    this.ambientAudioContext = context;
+    this.ambientAudioGain = gain;
+
+    return true;
+  }catch(error){
+    return false;
+  }
+}
+
+async resumeAmbientAudioGraph(){
+  if(!this.setupAmbientAudioGraph()) return false;
+
+  if(this.ambientAudioContext?.state === 'suspended'){
+    await this.ambientAudioContext.resume();
+  }
+
+  return true;
+}
+
+setAmbientAudioLevel(value, {duration = 0, ease = 'none', onComplete = null} = {}){
+  const nextValue = clamp(value, 0, 1);
+  const audio = this.getAmbientAudioElement();
+
+  gsap.killTweensOf(this.ambientAudioLevel);
+  gsap.killTweensOf(audio);
+
+  const applyLevel = () => {
+    if(this.ambientAudioGain){
+      this.ambientAudioGain.gain.value = this.ambientAudioLevel.value;
+    }
+
+    audio.volume = this.ambientAudioLevel.value;
+  };
+
+  if(duration <= 0){
+    this.ambientAudioLevel.value = nextValue;
+    applyLevel();
+    onComplete?.();
+    return;
+  }
+
+  gsap.to(this.ambientAudioLevel, {
+    value: nextValue,
+    duration,
+    ease,
+    onUpdate: applyLevel,
+    onComplete
+  });
+}
+
 setAmbientAudioSource(city){
   const source = city?.audio?.ambient || '';
   const audio = this.getAmbientAudioElement();
 
   if(this.ambientAudioSource === source) return audio;
 
-  gsap.killTweensOf(audio);
+  gsap.killTweensOf(this.ambientAudioLevel);
   audio.pause();
   audio.currentTime = 0;
-  audio.volume = 0;
+  this.setAmbientAudioLevel(0);
   audio.src = source;
   this.ambientAudioSource = source;
   this.ambientAudioStatus = source ? 'ready' : 'idle';
@@ -1456,13 +1525,12 @@ async playAmbientAudioForCity(city, {forceGesture = false} = {}){
   const targetVolume = this.getAmbientAudioVolume(city);
 
   try{
-    audio.volume = 0;
+    await this.resumeAmbientAudioGraph();
+    this.setAmbientAudioLevel(0);
     await audio.play();
     this.ambientAudioStatus = 'playing';
     this.updateAmbientAudioButton();
-    gsap.killTweensOf(audio);
-    gsap.to(audio, {
-      volume: targetVolume,
+    this.setAmbientAudioLevel(targetVolume, {
       duration: AMBIENT_AUDIO_FADE_SECONDS,
       ease: 'power2.out'
     });
@@ -1477,9 +1545,7 @@ stopAmbientAudio({clearSource = false} = {}){
   if(!this.ambientAudioElement) return;
 
   const audio = this.ambientAudioElement;
-  gsap.killTweensOf(audio);
-  gsap.to(audio, {
-    volume: 0,
+  this.setAmbientAudioLevel(0, {
     duration: AMBIENT_AUDIO_FADE_SECONDS * 0.75,
     ease: 'power2.in',
     onComplete: () => {

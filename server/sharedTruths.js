@@ -76,6 +76,44 @@ export const SHARED_TRUTHS = [
         tone: 'Picardia callejera, respeto por la autonomia femenina y burla carinosa de lo alternativo.'
       }
     }
+  },
+  {
+    id: 'irving-cuadro-sin-terminar',
+    title: 'El cuadro que Irving dejo sin terminar',
+    tags: ['irving', 'cuadro', 'retrato', 'pintura', 'pintar', 'boceto', 'guanabacoa', 'yanislaidis', 'new york', 'nueva york', 'artista', 'poeta', 'inconcluso', 'sin terminar'],
+    summary: 'Irving empezo un retrato de Yanislaidis antes de irse a New York. Nadie sabe bien si lo dejo sin terminar por cobardia, amor o porque vio demasiado.',
+    versions: {
+      domingo: {
+        angle: 'Domingo cree que Irving no termino el cuadro porque hay cosas que el arte ve antes que la persona se atreva a decir.',
+        opening: 'Irving dejo un cuadro sin terminar, si... pero a veces lo inconcluso dice mas que la firma.',
+        line: 'Ese muchacho pintaba como quien preguntaba. Y con Yanislaidis parece que la pregunta le quedo demasiado grande para el lienzo.',
+        tone: 'Profesor viejo, poetico sin empalagar, con orgullo por el alumno y cuidado por la herida ajena.'
+      },
+      paco: {
+        angle: 'Paco ve el cuadro como otro ejemplo de hombre romantico que sale corriendo antes de terminar lo que empezo.',
+        opening: 'Lo del cuadro de Irving es muy de artista, quillo: empezar con misterio y largarse antes de recoger los pinceles.',
+        line: 'Eso en Cadiz te sale en copla: "Niña, quédate quieta, que voy a pintarte un cuadro que va a ser la envidia de la Caleta". La puso en el sofa, con su bata y sus encajes, pero se distrajo un poco buscando otros paisajes. Le dibujo los ojos, que eran dos luceros, y bajando por el cuello le entro ansia de marinero. Iba por la cintura, con el pincel ya temblando, y cuando llego a las dunas... se quedo a medio pintando.',
+        tone: 'Guasa gaditana de chirigota, picara y cantable; debe sonar a copla de carnaval, con broma y ternura, no a comentario invasivo.'
+      },
+      manisera: {
+        angle: 'La manisera recuerda el cuadro desde lo concreto: Irving comprando mani, callado, con manos de pintura y mirada de despedida.',
+        opening: 'Ay, Irving... yo lo vi mas de una vez con las manos manchadas de pintura y una tristeza calladita que no compraba nadie.',
+        line: 'A lo mejor se le acabo la pintura, mi vida. Yo le hubiera dejado unos plumones y a lo mejor no se hubiera ido a New York.',
+        tone: 'Ternura de calle, memoria practica y melancolia suave.'
+      },
+      'marta-nora': {
+        angle: 'Marta Nora quiere saber donde esta el cuadro porque sospecha que en lo que falta se entiende mejor el romance.',
+        opening: 'El cuadro de Irving es exactamente el tipo de cosa que nadie enseña porque dice demasiado.',
+        line: 'A mi no me interesa solo lo que pinto; me interesa lo que dejo en blanco. En un retrato, el silencio tambien tiene forma.',
+        tone: 'Chisme fino, lectura estetica y curiosidad inteligente.'
+      },
+      yanislaidis: {
+        angle: 'Yanislaidis niega que el cuadro le importe, pero el tema le baja la voz: sabe que Irving la miro con una ternura que despues no supo sostener.',
+        opening: 'Ese cuadro... mira, no me hables muy alto de eso, que hay cosas que una guarda aunque diga que no.',
+        line: 'Irving me miraba como si fuera a pintarme completa, y despues se fue a New York dejandome medio retrato y una rabia preciosa.',
+        tone: 'Picardia contenida, orgullo herido, ternura peligrosa y cero victimismo.'
+      }
+    }
   }
 ];
 

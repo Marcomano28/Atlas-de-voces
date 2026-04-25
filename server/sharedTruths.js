@@ -38,6 +38,44 @@ export const SHARED_TRUTHS = [
         tone: 'Astucia callejera, limite claro y respeto por lo que no se confiesa de frente.'
       }
     }
+  },
+  {
+    id: 'mame-pulsera-protectora',
+    title: 'La pulsera de la Mame',
+    tags: ['mame', 'pulsera', 'amuleto', 'proteccion', 'protectora', 'ana', 'annia', 'rota', 'levante', 'energia', 'artesana', 'collar', 'conchas'],
+    summary: 'La Mame hizo una pulsera supuestamente protectora que paso por Ana, Annia y medio Rota, dejando detras mas chisme que magia confirmada.',
+    versions: {
+      domingo: {
+        angle: 'Domingo ve la pulsera como un amuleto de barrio: menos magia comprobada y mas necesidad humana de creer que algo nos cuida.',
+        opening: 'La pulsera de la Mame, mi hijo... eso no era una joya, eso era una tesis popular sobre el miedo.',
+        line: 'La gente se rie de los amuletos hasta que la vida aprieta; entonces cualquier hilo con dos cuentas parece un pararrayos contra la desgracia.',
+        tone: 'Filosofia de portal, humor seco y ternura por las supersticiones domesticas.'
+      },
+      paco: {
+        angle: 'Paco cree que la pulsera tenia mas expediente que un ministerio: cada mano por la que paso dejo una historia nueva.',
+        opening: '¿La pulsera de la Mame? Quillo, eso tenia mas expediente que un ministerio.',
+        line: 'La Mame decia que era proteccion, pero aquello pasaba de muñeca en muñeca y siempre dejaba detras un lio, dos versiones y alguien diciendo que no habia sido para tanto.',
+        tone: 'Guasa roteña, cariño por la Mame y exageracion de pueblo chico.'
+      },
+      manisera: {
+        angle: 'La manisera no sabe si la pulsera protegia, pero reconoce buen oficio, buena venta y una artesana que sabia ponerle cuento a una pieza.',
+        opening: 'Ay, mi vida, yo no se si esa pulsera protegia, pero la Mame sabia venderla como si viniera bendecida por tres santos y una vecina curiosa.',
+        line: 'Proteccion o no, la muchacha tenia mano: dos cuentas, un hilo, una concha, y ya la gente caminaba mas derecha creyendo que la suerte la llevaba puesta.',
+        tone: 'Vendedora vieja que respeta el oficio de otra vendedora; humor practico y ternura.'
+      },
+      'marta-nora': {
+        angle: 'Marta Nora sospecha que la pulsera no tenia magia: tenia circulacion social. Cada cambio de mano movia informacion.',
+        opening: 'La pulsera de la Mame no era magia, mi vida; era un archivo portatil de chisme.',
+        line: 'Cada vez que cambiaba de muñeca, alguien decia que era por energia, pero casualmente tambien cambiaba una noticia, una mirada o una deuda emocional.',
+        tone: 'Antropologia de barrio, chisme fino y lectura social juguetona.'
+      },
+      yanislaidis: {
+        angle: 'Yanislaidis se burla de la energia del levante, pero entiende que algunas mujeres usan amuletos para sentirse mas dueñas de si.',
+        opening: 'La Mame con su energia del levante me da risa, pero no te voy a mentir: hay mujeres que se ponen una pulsera y caminan como si llevaran escolta.',
+        line: 'Si aquello protegia o no, no se; pero a mas de una le dio valor para decir que no, y mira, eso ya es bastante magia.',
+        tone: 'Picardia callejera, respeto por la autonomia femenina y burla carinosa de lo alternativo.'
+      }
+    }
   }
 ];
 

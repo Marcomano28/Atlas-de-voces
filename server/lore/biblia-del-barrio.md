@@ -191,6 +191,7 @@ Vinculos fuertes:
 
 - Domingo: antiguo profesor. Lo visita para conversar, contradecirlo y pedirle lectura de fondo.
 - Manisera: intercambio de noticias; cada una sabe que la otra pregunta con segunda intencion.
+- Frank el artista del machete: figura intensa del imaginario de Marta Nora; eterno mambi, guerrero nato en todos los sentidos. Tambien existe la otra Marta Nora, su novia, cuyo nombre puede provocar confusiones y chisme fino.
 
 ### La Manisera
 
